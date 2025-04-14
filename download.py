@@ -123,7 +123,7 @@ def filter_band_files(df_files, bands=None, product_type=None, resolution=None):
 def download_bands(s3_client, bucket, bucket_name, df, bands, product_type, resolution, output_dir, max_attempts=10, retry_delay=10):
     """
     Download Sentinel-2 band files from S3 based on dataframe information.
-    
+
     Args:
         s3_client: S3 client object
         bucket: S3 bucket object
@@ -142,11 +142,11 @@ def download_bands(s3_client, bucket, bucket_name, df, bands, product_type, reso
         s3_base_url = extract_s3_path_from_url(row['S3Path']).replace("/eodata","")
         s3_manifest_url = f"{s3_base_url}/manifest.safe"
         _, filename = os.path.split(s3_manifest_url)
-        
+
         # Try to download manifest file with retry logic
         attempt = 0
         content = None
-        
+
         while attempt < max_attempts:
             try:
                 # Get the manifest file
@@ -160,26 +160,26 @@ def download_bands(s3_client, bucket, bucket_name, df, bands, product_type, reso
                     logger.warning(f"Unexpected status: {response['ResponseMetadata']['HTTPStatusCode']}")
                     attempt += 1
                     time.sleep(retry_delay)
-                    
+
             except Exception as e:
                 logger.warning(f"Error downloading manifest: {str(e)}")
                 attempt += 1
                 time.sleep(retry_delay)
-        
+
         if content is None:
             logger.error(f"Failed to download manifest after {max_attempts} attempts, skipping this product")
             continue
-            
+
         df_tmp = parse_safe_manifest(content=content)
         df_bands = filter_band_files(df_tmp, bands=bands, product_type=product_type, resolution=resolution)
 
         for gr in df_bands['href']:
             # Create full S3 URL for the band file
             band_s3_url = f"{s3_base_url}/{gr}"
-            
+
             # Extract just the filename from the path
             filename = os.path.basename(gr)
-            
+
             # Extract product ID for folder structure
             path_safe = s3_base_url.split(os.sep)[7].replace(".SAFE","")
             path_save = os.path.join(output_dir, path_safe)
@@ -187,7 +187,7 @@ def download_bands(s3_client, bucket, bucket_name, df, bands, product_type, reso
 
             # Download the file with retry logic
             attempt = 0
-            
+
             while attempt < max_attempts:
                 try:
                     # Download the band file
@@ -211,7 +211,7 @@ if __name__ == "__main__":
     SECRET_ACCESS_KEY = os.environ.get("SECRET_ACCESS_KEY")
     ENDPOINT_URL = 'https://eodata.dataspace.copernicus.eu'
     ENDPOINT_STAC = "https://stac.dataspace.copernicus.eu/v1/"
-    DATASET_VERSION = "V0"
+    DATASET_VERSION = "V1"
     BUKETNAME = "eodata"
     BASE_DIR = f"/mnt/disk/dataset/sentinel-ai-processor"
     DATASET_DIR = f"{BASE_DIR}/{DATASET_VERSION}"
@@ -246,8 +246,8 @@ if __name__ == "__main__":
     df_l1c = pd.read_csv(f"{DATASET_DIR}/input_l1c.csv")
     df_l2a = pd.read_csv(f"{DATASET_DIR}/output_l2a.csv")
 
-   
-    bands=['B02', 'B03', 'B04']
+
+    bands=['TCI']
     # download_bands(s3_client=s3_client, bucket=bucket, bucket_name=BUKETNAME, df=df_l2a,
     #                product_type="L2A", bands=bands, resolution=60, output_dir=output_dir,
     #                max_attempts=10, retry_delay=10)

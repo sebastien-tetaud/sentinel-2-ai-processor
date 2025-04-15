@@ -1,0 +1,17 @@
+DATASET:
+  version: "V1"
+  base_dir: "/mnt/disk/dataset/sentinel-ai-processor"
+
+ENDPOINTS:
+  url: "ttps://eodata.dataspace.copernicus.eu"
+  stac: "https://stac.dataspace.copernicus.eu/v1/"
+  bucket_name: "eodata"
+
+TRAINING:
+
+    batch_size: 32
+    val_bs: 32
+    num_workers : 8
+
+
+

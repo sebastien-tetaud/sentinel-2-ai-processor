@@ -8,7 +8,6 @@ ENDPOINTS:
   bucket_name: "eodata"
 
 TRAINING:
-
     batch_size: 32
     val_bs: 32
     num_workers : 8

@@ -19,6 +19,7 @@ def seed_everything(seed):
     torch.backends.cudnn.deterministic = False  # True
     torch.backends.cudnn.benchmark = True  # False
 
+
 def count_parameters(model, all=False):
     """
     Count the parameters of a model.

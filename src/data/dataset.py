@@ -41,10 +41,11 @@ class Sentinel2Dataset(Dataset):
         # Convert to PyTorch tensors and permute dimensions
 
 
-        binary_mask = ~np.all(x_data == 0, axis=2).astype(np.uint8)
-        binary_mask = np.repeat(binary_mask[:, :, np.newaxis], 3, axis=2)
-        binary_mask = torch.from_numpy(binary_mask).float()
-        binary_mask = torch.permute(binary_mask, (2, 0, 1))
+        # binary_mask = ~np.all(x_data == 0, axis=2).astype(np.uint8)
+        # binary_mask = np.repeat(binary_mask[:, :, np.newaxis], 3, axis=2)
+        # binary_mask = torch.from_numpy(binary_mask).float()
+        # binary_mask = torch.permute(binary_mask, (2, 0, 1))
+
         x_data = torch.from_numpy(x_data).float()
         x_data = torch.permute(x_data, (2, 0, 1))  # HWC to CHW
 
@@ -60,7 +61,7 @@ class Sentinel2Dataset(Dataset):
         # x_data = transformed["image"]
         # y_data = transformed["mask"]
 
-        return x_data, y_data, binary_mask
+        return x_data, y_data
 
     def __len__(self):
         return len(self.df_path)

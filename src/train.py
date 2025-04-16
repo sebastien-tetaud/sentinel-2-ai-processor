@@ -64,7 +64,7 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 model = model.to(device)
 
 # # Define loss function
-# criterion = nn.MSELoss()
+criterion = nn.MSELoss()
 optimizer = optim.Adam(model.parameters(), lr=float(LEARNING_RATE))
 
 # Training parameters
@@ -88,19 +88,20 @@ for epoch in range(NUM_EPOCHS):
     with tqdm(total=(len(train_dataset) - len(train_dataset) % BATCH_SIZE), colour='#3eedc4') as t:
         t.set_description('epoch: {}/{}'.format(epoch, NUM_EPOCHS - 1))
 
-        for batch_idx, (x_data, y_data, valid_mask) in enumerate(train_loader):
+        for batch_idx, (x_data, y_data) in enumerate(train_loader):
             x_data = x_data.to(device)
             y_data = y_data.to(device)
-            valid_mask = valid_mask.to(device)
 
             # Clear gradients
             optimizer.zero_grad()
 
+            valid_mask = (y_data >= 0)
             # Forward pass
             outputs = model(x_data)
 
             # Calculate loss
-            loss = masked_mse_loss(outputs, y_data, valid_mask)
+            # loss = masked_mse_loss(outputs, y_data, valid_mask)
+            loss = criterion(outputs[valid_mask], y_data[valid_mask])
 
             # Backward pass and optimize
             loss.backward()
@@ -122,21 +123,23 @@ for epoch in range(NUM_EPOCHS):
     # Validation phase
     model.eval()
     val_loss = 0.0
-
+    criterion = nn.MSELoss()
     with torch.no_grad():
         with tqdm(total=len(val_dataset), colour='#f4d160') as t:
             t.set_description('validation')
 
-            for batch_idx, (x_data, y_data, valid_mask) in enumerate(val_loader):
+            for batch_idx, (x_data, y_data) in enumerate(val_loader):
                 x_data = x_data.to(device)
                 y_data = y_data.to(device)
-                valid_mask = valid_mask.to(device)
+                valid_mask = (y_data >= 0)
+                
 
                 # Forward pass
                 outputs = model(x_data)
+                loss = criterion(outputs[valid_mask], y_data[valid_mask], )
 
                 # Calculate loss
-                loss = masked_mse_loss(outputs, y_data, valid_mask)
+                # loss = masked_mse_loss(outputs, y_data, valid_mask)
 
                 # Update statistics
                 batch_loss = loss.item()

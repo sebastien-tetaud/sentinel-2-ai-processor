@@ -9,7 +9,7 @@ ENDPOINTS:
 
 TRAINING:
     seed: 42
-    resize : 512
+    resize : 1024
     learning_rate: 1e-3
     batch_size: 16
     val_bs: 32

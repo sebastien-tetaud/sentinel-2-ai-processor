@@ -1,3 +1,4 @@
+albumentations
 aiohttp==3.11.16
 backports.tarfile==1.2.0
 bokeh==3.7.2

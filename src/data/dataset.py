@@ -6,7 +6,11 @@ from torch.utils.data import Dataset
 from data.transform import get_transforms
 
 class Sentinel2Dataset(Dataset):
-    def __init__(self, df_path, train, augmentation, img_size=512):
+    def __init__(self, df_path,
+                 train,
+                 augmentation,
+                 img_size):
+
         self.df_path = df_path
         self.train = train
         self.augmentation = augmentation
@@ -26,8 +30,8 @@ class Sentinel2Dataset(Dataset):
         x_data = cv2.cvtColor(x_data, cv2.COLOR_BGR2RGB)
 
         # Resize images to 1024x1024
-        x_data = cv2.resize(x_data, (self.img_size, self.img_size), interpolation=cv2.INTER_AREA)
-        y_data = cv2.resize(y_data, (self.img_size, self.img_size), interpolation=cv2.INTER_AREA)
+        x_data = cv2.resize(x_data, (self.img_size[0], self.img_size[1]), interpolation=cv2.INTER_AREA)
+        y_data = cv2.resize(y_data, (self.img_size[0], self.img_size[1]), interpolation=cv2.INTER_AREA)
 
         # Convert to numpy arrays and normalize
         x_data = np.array(x_data).astype(np.float32) / 255.0

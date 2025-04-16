@@ -33,11 +33,17 @@ df_train = pd.read_csv(train_path)
 df_val = pd.read_csv(val_path)
 df_test = pd.read_csv(test_path)
 
-train_dataset = Sentinel2Dataset(df_path=df_train, train=True, augmentation=False)
-val_dataset = Sentinel2Dataset(df_path=df_val, train=False, augmentation=False)
+train_dataset = Sentinel2Dataset(df_path=df_train,
+                                 train=True, augmentation=False,
+                                 img_size=RESIZE)
+
+val_dataset = Sentinel2Dataset(df_path=df_val,
+                               train=False, augmentation=False,
+                               img_size=RESIZE)
+
 train_loader, val_loader = define_loaders(
-        train_dataset,
-        val_dataset,
+        train_dataset=train_dataset,
+        val_dataset=val_dataset,
         batch_size=BATCH_SIZE,
         val_bs=VAL_BS,
         num_workers=NUM_WORKERS,

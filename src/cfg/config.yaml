@@ -13,7 +13,7 @@ TRAINING:
     learning_rate: 1e-3
     batch_size: 16
     val_bs: 32
-    n_epoch: 10
+    n_epoch: 50
     num_workers : 8
 
 

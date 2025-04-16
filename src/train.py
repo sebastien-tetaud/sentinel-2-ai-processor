@@ -9,8 +9,9 @@ import torch.nn as nn
 from tqdm import tqdm
 import os
 from model_zoo.models import define_model
-
+import torch.optim as optim
 from utils.torch import count_parameters, seed_everything
+from training.losses import masked_mse_loss
 # Configure loguru logger
 log_dir = "logs"
 os.makedirs(log_dir, exist_ok=True)
@@ -24,6 +25,7 @@ VAL_BS = config["TRAINING"]['val_bs']
 NUM_WORKERS = config['TRAINING']['num_workers']
 RESIZE = config['TRAINING']['resize']
 LEARNING_RATE = config['TRAINING']['learning_rate']
+NUM_EPOCHS = config['TRAINING']['n_epoch']
 SEED = config['TRAINING']['seed']
 train_path = f"{BASE_DIR}/{VERSION}/train_path.csv"
 val_path = f"{BASE_DIR}/{VERSION}/val_path.csv"
@@ -49,7 +51,7 @@ train_loader, val_loader = define_loaders(
         num_workers=NUM_WORKERS,
     )
 
-import torch.optim as optim
+
 
 model = define_model(name="Unet", encoder_name="resnet34",
                      in_channel=3, out_channels=3, activation=None)
@@ -61,8 +63,8 @@ print("Number of parameters: {}".format(nb_parameters))
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 model = model.to(device)
 
-# Define loss function
-criterion = nn.MSELoss()
+# # Define loss function
+# criterion = nn.MSELoss()
 optimizer = optim.Adam(model.parameters(), lr=float(LEARNING_RATE))
 
 # Training parameters
@@ -73,10 +75,8 @@ metrics_dict = {
     'train_loss': [],
     'val_loss': []
 }
-NUM_EPOCHS = 20  # Increase for better results
 save_path = "checkpoints"
 os.makedirs(save_path, exist_ok=True)
-
 # Training loop
 logger.info(f"Starting training for {NUM_EPOCHS} epochs")
 
@@ -88,9 +88,10 @@ for epoch in range(NUM_EPOCHS):
     with tqdm(total=(len(train_dataset) - len(train_dataset) % BATCH_SIZE), colour='#3eedc4') as t:
         t.set_description('epoch: {}/{}'.format(epoch, NUM_EPOCHS - 1))
 
-        for batch_idx, (x_data, y_data) in enumerate(train_loader):
+        for batch_idx, (x_data, y_data, valid_mask) in enumerate(train_loader):
             x_data = x_data.to(device)
             y_data = y_data.to(device)
+            valid_mask = valid_mask.to(device)
 
             # Clear gradients
             optimizer.zero_grad()
@@ -99,7 +100,7 @@ for epoch in range(NUM_EPOCHS):
             outputs = model(x_data)
 
             # Calculate loss
-            loss = criterion(outputs, y_data)
+            loss = masked_mse_loss(outputs, y_data, valid_mask)
 
             # Backward pass and optimize
             loss.backward()
@@ -126,15 +127,16 @@ for epoch in range(NUM_EPOCHS):
         with tqdm(total=len(val_dataset), colour='#f4d160') as t:
             t.set_description('validation')
 
-            for batch_idx, (x_data, y_data) in enumerate(val_loader):
+            for batch_idx, (x_data, y_data, valid_mask) in enumerate(val_loader):
                 x_data = x_data.to(device)
                 y_data = y_data.to(device)
+                valid_mask = valid_mask.to(device)
 
                 # Forward pass
                 outputs = model(x_data)
 
                 # Calculate loss
-                loss = criterion(outputs, y_data)
+                loss = masked_mse_loss(outputs, y_data, valid_mask)
 
                 # Update statistics
                 batch_loss = loss.item()

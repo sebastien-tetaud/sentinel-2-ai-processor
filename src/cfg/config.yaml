@@ -9,11 +9,11 @@ ENDPOINTS:
 
 TRAINING:
     seed: 42
-    resize : (512,512)
+    resize : 512
     learning_rate: 1e-3
     batch_size: 16
     val_bs: 32
-    epoch: 10
+    n_epoch: 10
     num_workers : 8
 
 

@@ -15,7 +15,6 @@ class Sentinel2Dataset(Dataset):
         self.train = train
         self.augmentation = augmentation
         self.img_size = img_size
-
         self.transform = get_transforms(train=self.train,
                                         augmentation=self.augmentation)
 
@@ -23,45 +22,31 @@ class Sentinel2Dataset(Dataset):
         # Load images
         x_path = self.df_path.l1c_path.iloc[index]
         x_data = cv2.imread(x_path)
-
-        y_path = self.df_path.l2a_path.iloc[index]
-        y_data = cv2.imread(y_path)
-
-        y_data = cv2.cvtColor(y_data, cv2.COLOR_BGR2RGB)
         x_data = cv2.cvtColor(x_data, cv2.COLOR_BGR2RGB)
-
-        # Resize images to 1024x1024
         x_data = cv2.resize(x_data, (self.img_size, self.img_size), interpolation=cv2.INTER_AREA)
-        y_data = cv2.resize(y_data, (self.img_size, self.img_size), interpolation=cv2.INTER_AREA)
-
-        # Convert to numpy arrays and normalize
         x_data = np.array(x_data).astype(np.float32) / 255.0
-        y_data = np.array(y_data).astype(np.float32) / 255.0
-
-        # Convert to PyTorch tensors and permute dimensions
-
-
-        # binary_mask = ~np.all(x_data == 0, axis=2).astype(np.uint8)
-        # binary_mask = np.repeat(binary_mask[:, :, np.newaxis], 3, axis=2)
-        # binary_mask = torch.from_numpy(binary_mask).float()
-        # binary_mask = torch.permute(binary_mask, (2, 0, 1))
-
         x_data = torch.from_numpy(x_data).float()
         x_data = torch.permute(x_data, (2, 0, 1))  # HWC to CHW
 
-        y_data = torch.from_numpy(y_data).float()
-        y_data = torch.permute(y_data, (2, 0, 1))  # HWC to CHW
+
+
+        if self.train:
+            y_path = self.df_path.l2a_path.iloc[index]
+            y_data = cv2.imread(y_path)
+            y_data = cv2.cvtColor(y_data, cv2.COLOR_BGR2RGB)
+            y_data = cv2.resize(y_data, (self.img_size, self.img_size), interpolation=cv2.INTER_AREA)
+            y_data = np.array(y_data).astype(np.float32) / 255.0
+            y_data = torch.from_numpy(y_data).float()
+            y_data = torch.permute(y_data, (2, 0, 1))  # HWC to CHW
+
+            # transformed = self.transform(image=x_data, mask=y_data)
+            # y_data = transformed["mask"]
+            # x_data = transformed["image"]
+            return x_data, y_data
 
 
 
-
-
-        # If you want to apply additional transformations:
-        # transformed = self.transform(image=x_data, mask=y_data)
-        # x_data = transformed["image"]
-        # y_data = transformed["mask"]
-
-        return x_data, y_data
+        return x_data
 
     def __len__(self):
         return len(self.df_path)

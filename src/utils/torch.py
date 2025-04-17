@@ -4,7 +4,7 @@ import random
 import numpy as np
 import re
 import copy
-import loguru
+from loguru import logger
 
 def seed_everything(seed):
     """
@@ -92,7 +92,7 @@ def load_model_weights(model, filename, verbose=1, cp_folder="", strict=True):
                 model.load_state_dict(state_dict, strict=strict)
 
     if verbose:
-        loguru.info(
+        logger.info(
             f"\n -> Loading encoder weights from {os.path.join(cp_folder,filename)}\n"
         )
 

@@ -105,6 +105,8 @@ def create_cdse_query_url(
     # Add top parameter for limiting results
     url += f"&$top={max_items}"
 
+    url += "&$expand=Attributes"
+
     return url
 
 
@@ -415,7 +417,7 @@ ACCESS_KEY_ID = os.environ.get("ACCESS_KEY_ID")
 SECRET_ACCESS_KEY = os.environ.get("SECRET_ACCESS_KEY")
 ENDPOINT_URL = 'https://eodata.dataspace.copernicus.eu'
 ENDPOINT_STAC = "https://stac.dataspace.copernicus.eu/v1/"
-DATASET_VERSION = "V1"
+DATASET_VERSION = "V2"
 BUCKET_NAME = "eodata"
 BASE_DIR = f"/mnt/disk/dataset/sentinel-ai-processor"
 DATASET_DIR = f"{BASE_DIR}/{DATASET_VERSION}"
@@ -542,8 +544,12 @@ while current_date < end_date:
 df_l1c = pd.DataFrame(all_l1c_results)
 df_l2a = pd.DataFrame(all_l2a_results)
 # Select only the required columns
-df_l2a = df_l2a[["Name", "S3Path", "Footprint", "GeoFootprint"]]
-df_l1c = df_l1c[["Name", "S3Path", "Footprint", "GeoFootprint"]]
+# Select only the required columns
+df_l2a = df_l2a[["Name", "S3Path", "Footprint", "GeoFootprint","Attributes"]]
+df_l1c = df_l1c[["Name", "S3Path", "Footprint", "GeoFootprint","Attributes"]]
+
+df_l1c['cloud_cover'] = df_l1c['Attributes'].apply(lambda x: x[2]["Value"])
+df_l2a['cloud_cover'] = df_l2a['Attributes'].apply(lambda x: x[2]["Value"])
 
 # Create the id_key column based on the function
 df_l2a['id_key'] = df_l2a['Name'].apply(remove_last_segment_rsplit)
@@ -598,8 +604,8 @@ logger.add(lambda msg: print(msg, end=""), colorize=True, format="{message}")
 #                 product_type="L1C", bands=BANDS, resolution=None, output_dir=input_dir,
 #                 max_attempts=10, retry_delay=10)
 
-download_bands(s3_client=s3_client, bucket_name=BUCKET_NAME, df=df_l2a,
-                product_type="L2A", bands=BANDS, resolution=10, output_dir=output_dir,
-                max_attempts=10, retry_delay=10)
+# download_bands(s3_client=s3_client, bucket_name=BUCKET_NAME, df=df_l2a,
+#                 product_type="L2A", bands=BANDS, resolution=10, output_dir=output_dir,
+#                 max_attempts=10, retry_delay=10)
 
 

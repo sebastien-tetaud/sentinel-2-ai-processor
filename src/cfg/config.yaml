@@ -1,6 +1,7 @@
 DATASET:
   version: "V1"
   base_dir: "/mnt/disk/dataset/sentinel-ai-processor"
+  bands : ["B02", "B03", "B04"]
 
 ENDPOINTS:
   url: "ttps://eodata.dataspace.copernicus.eu"
@@ -13,15 +14,12 @@ MODEL:
   in_channel: 3
   out_channels: 3
 
-
-
-
 TRAINING:
     seed: 42
     resize : 1024
     learning_rate: 1e-3
     batch_size: 16
-    n_epoch: 50
+    n_epoch: 20
     num_workers : 8
 
 

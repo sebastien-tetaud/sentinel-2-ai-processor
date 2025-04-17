@@ -10,7 +10,7 @@ from tqdm import tqdm
 import os
 from model_zoo.models import define_model
 import torch.optim as optim
-from utils.torch import count_parameters, seed_everything
+from utils.torch import count_parameters, seed_everything, load_model_weights
 from training.losses import masked_mse_loss
 # Configure loguru logger
 log_dir = "logs"
@@ -35,6 +35,11 @@ df_train = pd.read_csv(train_path)
 df_val = pd.read_csv(val_path)
 df_test = pd.read_csv(test_path)
 
+logger.info(f"Number of training data: {len(df_train)}")
+logger.info(f"Number of val data: {len(df_val)}")
+logger.info(f"Number of test data: {len(df_test)}")
+
+
 train_dataset = Sentinel2Dataset(df_path=df_train,
                                  train=True, augmentation=False,
                                  img_size=RESIZE)
@@ -43,18 +48,32 @@ val_dataset = Sentinel2Dataset(df_path=df_val,
                                train=False, augmentation=False,
                                img_size=RESIZE)
 
+test_dataset = Sentinel2Dataset(df_path=df_test,
+                                 train=True, augmentation=False,
+                                 img_size=RESIZE)
+
 train_loader, val_loader = define_loaders(
         train_dataset=train_dataset,
         val_dataset=val_dataset,
+        train=True,
         batch_size=BATCH_SIZE,
-        val_bs=VAL_BS,
+        num_workers=NUM_WORKERS,
+    )
+
+test_loader =  define_loaders(
+        train_dataset=test_dataset,
+        val_dataset=None,
+        train=False,
+        batch_size=BATCH_SIZE,
         num_workers=NUM_WORKERS,
     )
 
 
-
-model = define_model(name="Unet", encoder_name="resnet34",
-                     in_channel=3, out_channels=3, activation=None)
+model = define_model(name=config["MODEL"]["model_name"],
+                     encoder_name=config["MODEL"]["encoder_name"],
+                     in_channel=config["MODEL"]["encoder_name"],
+                     out_channels=config["MODEL"]["out_channels"],
+                     activation=None)
 
 nb_parameters = count_parameters(model=model)
 logger.info("Number of parameters: {}".format(nb_parameters))
@@ -79,7 +98,7 @@ save_path = "checkpoints"
 os.makedirs(save_path, exist_ok=True)
 # Training loop
 logger.info(f"Starting training for {NUM_EPOCHS} epochs")
-
+weights_path = f"{save_path}/best_model.pth"
 for epoch in range(NUM_EPOCHS):
     # Training phase
     model.train()
@@ -132,7 +151,7 @@ for epoch in range(NUM_EPOCHS):
                 x_data = x_data.to(device)
                 y_data = y_data.to(device)
                 valid_mask = (y_data >= 0)
-                
+
 
                 # Forward pass
                 outputs = model(x_data)
@@ -165,53 +184,40 @@ for epoch in range(NUM_EPOCHS):
 # Save final model
 torch.save(model.state_dict(), f"{save_path}/final_model.pth")
 logger.info(f"Training completed. Best Val Loss: {best_val_loss:.6f} at epoch {best_epoch+1}")
+logger.info("Model performance running on test data ...")
+torch.cuda.empty_cache()
+# Model Test
 
-# Save metrics
-import matplotlib.pyplot as plt
-import numpy as np
+model = load_model_weights(model=model, filename=weights_path)
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+model = model.to(device)
 
-# Plot loss curves
-plt.figure(figsize=(10, 6))
-plt.plot(metrics_dict['train_loss'], label='Train Loss')
-plt.plot(metrics_dict['val_loss'], label='Validation Loss')
-plt.xlabel('Epochs')
-plt.ylabel('Loss (MSE)')
-plt.title('Training and Validation Loss')
-plt.legend()
-plt.savefig(f"{save_path}/loss_curves.png")
-logger.info(f"Loss curves saved to {save_path}/loss_curves.png")
-
-# Optionally, test the model on a few validation samples
 model.eval()
+test_loss = 0.0  # Changed variable name from val_loss to test_loss
+criterion = nn.MSELoss()
 with torch.no_grad():
-    for i, (x_data, y_data) in enumerate(val_loader):
-        if i >= 12:
-            break
+    with tqdm(total=len(test_dataset), colour='#f4d160') as t:
+        t.set_description('testing')  # Changed from 'validation' to 'testing'
 
-        x_data = x_data.to(device)
-        y_data = y_data.to(device)
+        for batch_idx, (x_data, y_data) in enumerate(test_loader):
+            x_data = x_data.to(device)
+            y_data = y_data.to(device)
+            valid_mask = (y_data >= 0)
 
-        output = model(x_data)
+            # Forward pass
+            outputs = model(x_data)
+            loss = criterion(outputs[valid_mask], y_data[valid_mask])
 
-        # Convert to numpy for visualization
-        x_np = x_data.cpu().numpy()[0].transpose(1, 2, 0)  # First image in batch, CHW to HWC
-        y_np = y_data.cpu().numpy()[0].transpose(1, 2, 0)
-        pred_np = output.cpu().numpy()[0].transpose(1, 2, 0)
-        # Clip values to valid range for visualization
-        x_np = np.clip(x_np, 0, 1)
-        y_np = np.clip(y_np, 0, 1)
-        pred_np = np.clip(pred_np, 0, 1)
+            # Update statistics
+            batch_loss = loss.item()
+            test_loss += batch_loss
 
-        # Plot and save
-        fig, axs = plt.subplots(1, 3, figsize=(15, 5))
-        axs[0].imshow(x_np)
-        axs[0].set_title('L1C Input')
-        axs[1].imshow(pred_np)
-        axs[1].set_title('Model Output')
-        axs[2].imshow(y_np)
-        axs[2].set_title('L2A Ground Truth')
+            # Update progress bar
+            t.set_postfix(loss=batch_loss)
+            t.update(x_data.size(0))
 
-        plt.savefig(f"{save_path}/sample_{i}_prediction.png")
-        plt.close()
+avg_test_loss = test_loss / len(test_loader)
+metrics_dict['test_loss'] = avg_test_loss  # You might need to update this line
+# or metrics_dict['mse'].append(avg_test_loss)
+print(f'Test Loss: {avg_test_loss}')
 
-logger.info("Testing completed. Sample predictions saved.")

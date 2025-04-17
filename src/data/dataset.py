@@ -28,25 +28,20 @@ class Sentinel2Dataset(Dataset):
         x_data = torch.from_numpy(x_data).float()
         x_data = torch.permute(x_data, (2, 0, 1))  # HWC to CHW
 
+        y_path = self.df_path.l2a_path.iloc[index]
+        y_data = cv2.imread(y_path)
+        y_data = cv2.cvtColor(y_data, cv2.COLOR_BGR2RGB)
+        y_data = cv2.resize(y_data, (self.img_size, self.img_size), interpolation=cv2.INTER_AREA)
+        y_data = np.array(y_data).astype(np.float32) / 255.0
+        y_data = torch.from_numpy(y_data).float()
+        y_data = torch.permute(y_data, (2, 0, 1))  # HWC to CHW
+
+        # transformed = self.transform(image=x_data, mask=y_data)
+        # y_data = transformed["mask"]
+        # x_data = transformed["image"]
 
 
-        if self.train:
-            y_path = self.df_path.l2a_path.iloc[index]
-            y_data = cv2.imread(y_path)
-            y_data = cv2.cvtColor(y_data, cv2.COLOR_BGR2RGB)
-            y_data = cv2.resize(y_data, (self.img_size, self.img_size), interpolation=cv2.INTER_AREA)
-            y_data = np.array(y_data).astype(np.float32) / 255.0
-            y_data = torch.from_numpy(y_data).float()
-            y_data = torch.permute(y_data, (2, 0, 1))  # HWC to CHW
-
-            # transformed = self.transform(image=x_data, mask=y_data)
-            # y_data = transformed["mask"]
-            # x_data = transformed["image"]
-            return x_data, y_data
-
-
-
-        return x_data
+        return x_data, y_data
 
     def __len__(self):
         return len(self.df_path)

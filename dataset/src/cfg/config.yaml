@@ -4,7 +4,7 @@ endpoint_stac: 'https://stac.dataspace.copernicus.eu/v1/'
 bucket_name: 'eodata'
 
 # Dataset Configuration
-dataset_version: 'V2'
+dataset_version: 'V3'
 base_dir: '/mnt/disk/dataset/sentinel-ai-processor'
 bands:
   - 'B02'
@@ -19,7 +19,7 @@ query:
     - 11.2
     - 50.1833
 
-  start_date: '2023-01-01'
+  start_date: '2018-01-01'
   end_date: '2025-01-01'
   max_items: 1000
   max_cloud_cover: 100

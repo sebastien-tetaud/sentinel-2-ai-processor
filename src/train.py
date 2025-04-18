@@ -108,7 +108,7 @@ logger.info(f"Starting training for {NUM_EPOCHS} epochs")
 weights_path = f"{save_path}/best_model.pth"
 
 ####################
-# Training phase #
+# Training phase   #
 ####################
 
 for epoch in range(NUM_EPOCHS):

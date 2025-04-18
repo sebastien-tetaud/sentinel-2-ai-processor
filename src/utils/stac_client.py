@@ -165,3 +165,90 @@ def download_sentinel_image(username, password, start_date, end_date,
         return response.content, metadata
     else:
         return f"Failed to download the file. Status code: {response.status_code}", None
+
+
+def create_cdse_query_url(
+    collection_name="SENTINEL-2",
+    product_type="MSIL2A",
+    polygon=None,
+    start_interval=None,
+    end_interval=None,
+    max_cloud_cover=100,
+    max_items=1000,
+    additional_filters=None,
+    orderby="ContentDate/Start"  # Add orderby parameter with default value
+):
+    """
+    Create a query URL for the Copernicus Data Space Ecosystem OData API.
+
+    Parameters:
+    -----------
+    collection_name : str
+        The collection name (e.g., 'SENTINEL-2', 'SENTINEL-1')
+    product_type : str
+        The product type (e.g., 'MSIL2A', 'MSIL1C', 'GRD')
+    polygon : str
+        WKT polygon string for spatial filtering
+    start_interval : str
+        Start time in ISO format with Z for UTC (e.g., '2023-01-01T00:00:00.000Z')
+    end_interval : str
+        End time in ISO format with Z for UTC (e.g., '2023-01-31T23:59:59.999Z')
+    max_cloud_cover : int
+        Maximum cloud cover percentage (0-100)
+    max_items : int
+        Maximum number of items to return
+    additional_filters : list
+        List of additional filter strings to add to the query
+    orderby : str or None
+        Field to order results by (e.g., 'ContentDate/Start', 'ContentDate/Start desc')
+        Set to None to skip ordering
+
+    Returns:
+    --------
+    str
+        Complete URL for the OData API query
+    """
+
+    # Basic filter for collection
+    filter_parts = [f"Collection/Name eq '{collection_name}'"]
+
+    # Add spatial filter if provided
+    if polygon:
+        filter_parts.append(f"OData.CSC.Intersects(area=geography'SRID=4326;{polygon}')")
+
+    # Add product type filter
+    if product_type:
+        filter_parts.append(f"contains(Name,'{product_type}')")
+
+    # Add temporal filters if provided
+    if start_interval:
+        filter_parts.append(f"ContentDate/Start gt {start_interval}")
+    if end_interval:
+        filter_parts.append(f"ContentDate/Start lt {end_interval}")
+
+    # Add cloud cover filter if applicable
+    # Only add for optical sensors (Sentinel-2)
+    if collection_name == 'SENTINEL-2' and max_cloud_cover < 100:
+        filter_parts.append(
+            f"Attributes/OData.CSC.DoubleAttribute/any(att:att/Name eq 'cloudCover' and "
+            f"att/OData.CSC.DoubleAttribute/Value le {max_cloud_cover})"
+        )
+
+    # Add any additional filters
+    if additional_filters:
+        filter_parts.extend(additional_filters)
+
+    # Construct the URL with all filters
+    filter_string = " and ".join(filter_parts)
+    url = f"https://catalogue.dataspace.copernicus.eu/odata/v1/Products?$filter={filter_string}"
+
+    # Add orderby parameter if specified
+    if orderby:
+        url += f"&$orderby={orderby}"
+
+    # Add top parameter for limiting results
+    url += f"&$top={max_items}"
+
+    url += "&$expand=Attributes"
+
+    return url

@@ -33,7 +33,7 @@ def create_cdse_query_url(
     max_items=1000,
     additional_filters=None,
     orderby="ContentDate/Start"  # Add orderby parameter with default value
-):
+    ):
     """
     Create a query URL for the Copernicus Data Space Ecosystem OData API.
 
@@ -268,7 +268,7 @@ def filter_band_files(df_files, bands=None, product_type=None, resolution=None):
 
 def get_product(s3_client, bucket_name, object_url, output_path,
                            resize=False, target_size=None, interpolation=cv2.INTER_CUBIC,
-                           format='JPEG'):
+                           format='PNG'):
     """
     Retrieve a satellite image from S3, optionally resize it, and save it.
 
@@ -323,7 +323,7 @@ def get_product(s3_client, bucket_name, object_url, output_path,
     return output_path
 
 
-def download_bands(s3_client, bucket_name, df, bands, product_type, resolution, output_dir, max_attempts=10, retry_delay=10):
+def download_bands(s3_client, bucket_name, df, bands, product_type, resolution, resize, output_dir, max_attempts=10, retry_delay=10):
     """
     Download Sentinel-2 band files from S3 based on dataframe information.
 
@@ -399,7 +399,7 @@ def download_bands(s3_client, bucket_name, df, bands, product_type, resolution, 
                     output_path = f"{path_save}/{os.path.splitext(filename)[0]}.png"
                     get_product(s3_client=s3_client, bucket_name=bucket_name,
                                 object_url=band_s3_url, output_path=output_path,
-                           resize=True, target_size=(1830, 1830), interpolation=cv2.INTER_CUBIC,
+                           resize=False, target_size=(1830, 1830), interpolation=cv2.INTER_CUBIC,
                            format='PNG')
                     logger.info(f"Downloaded {filename} to {path_save}")
                     break
@@ -421,14 +421,13 @@ DATASET_VERSION = "V2"
 BUCKET_NAME = "eodata"
 BASE_DIR = f"/mnt/disk/dataset/sentinel-ai-processor"
 DATASET_DIR = f"{BASE_DIR}/{DATASET_VERSION}"
-BANDS = ['TCI']
+BANDS = ['B02','B03','B04']
 
 connector = S3Connector(
     endpoint_url=ENDPOINT_URL,
     access_key_id=ACCESS_KEY_ID,
     secret_access_key=SECRET_ACCESS_KEY,
-    region_name='default'
-)
+    region_name='default')
 # Get S3 client and resource from the connector instance
 s3 = connector.get_s3_resource()
 s3_client = connector.get_s3_client()
@@ -451,7 +450,7 @@ logger.add(log_filename, format="{time:YYYY-MM-DD HH:mm:ss} | {level} | {message
 logger.add(lambda msg: print(msg, end=""), colorize=True, format="{message}")
 
 start_date = datetime(2023, 1, 1)
-end_date = datetime(2025, 1, 1)
+end_date = datetime(2023, 1, 15)
 max_items = 1000
 max_cloud_cover = 100
 
@@ -574,8 +573,8 @@ df_l1c = df_l1c.reset_index()
 df_l1c.to_csv(f"{DATASET_DIR}/input_l1c.csv")
 df_l2a.to_csv(f"{DATASET_DIR}/output_l2a.csv")
 
-df_l1c = df_l1c.sample(n=15000, random_state=42)
-df_l2a = df_l2a.sample(n=15000, random_state=42)
+# df_l1c = df_l1c.sample(n=15000, random_state=42)
+# df_l2a = df_l2a.sample(n=15000, random_state=42)
 df_l1c = df_l1c.reset_index(drop=True)
 df_l2a = df_l2a.reset_index(drop=True)
 
@@ -588,9 +587,6 @@ for i in range(min(len(df_l1c), len(df_l2a))):
 df_l1c.to_csv(f"{DATASET_DIR}/sample_input_l1c.csv")
 df_l2a.to_csv(f"{DATASET_DIR}/sample_output_l2a.csv")
 
-# df_l1c = pd.read_csv(f"{DATASET_DIR}/sample_input_l1c.csv")
-# df_l2a = pd.read_csv(f"{DATASET_DIR}/sample_output_l2a.csv")
-
 log_filename = f"{DATASET_DIR}/sentinel_download_log_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
 # Remove the default sink and add custom ones
 logger.remove()
@@ -600,12 +596,12 @@ logger.add(log_filename, format="{time:YYYY-MM-DD HH:mm:ss} | {level} | {message
 logger.add(lambda msg: print(msg, end=""), colorize=True, format="{message}")
 
 
-# download_bands(s3_client=s3_client, bucket_name=BUCKET_NAME, df=df_l1c,
-#                 product_type="L1C", bands=BANDS, resolution=None, output_dir=input_dir,
-#                 max_attempts=10, retry_delay=10)
+download_bands(s3_client=s3_client, bucket_name=BUCKET_NAME, df=df_l1c[:2],
+                product_type="L1C", bands=BANDS, resize=False, resolution=None, output_dir=input_dir,
+                max_attempts=10, retry_delay=10)
 
-# download_bands(s3_client=s3_client, bucket_name=BUCKET_NAME, df=df_l2a,
-#                 product_type="L2A", bands=BANDS, resolution=10, output_dir=output_dir,
-#                 max_attempts=10, retry_delay=10)
+download_bands(s3_client=s3_client, bucket_name=BUCKET_NAME, df=df_l2a[:2],
+                product_type="L2A", bands=BANDS,resize=False, resolution=10, output_dir=output_dir,
+                max_attempts=10, retry_delay=10)
 
 

@@ -317,24 +317,24 @@ def main():
     # Validate alignment
     validate_data_alignment(df_l1c, df_l2a)
 
-    # Save samples (optional)
-    df_l1c.reset_index(drop=True).to_csv(f"{env['DATASET_DIR']}/sample_input_l1c.csv")
-    df_l2a.reset_index(drop=True).to_csv(f"{env['DATASET_DIR']}/sample_output_l2a.csv")
+    # # Save samples (optional)
+    # df_l1c.reset_index(drop=True).to_csv(f"{env['DATASET_DIR']}/sample_input_l1c.csv")
+    # df_l2a.reset_index(drop=True).to_csv(f"{env['DATASET_DIR']}/sample_output_l2a.csv")
 
     # Set up logger for download
     setup_logger(env['DATASET_DIR'], "sentinel_download_log")
 
     # Download the data
-    download_sentinel_data(
-        s3_client=env['s3_client'],
-        bucket_name=env['BUCKET_NAME'],
-        df_l1c=df_l1c,
-        df_l2a=df_l2a,
-        bands=env['BANDS'],
-        input_dir=env['input_dir'],
-        output_dir=env['output_dir'],
-        download_config=config['download']
-    )
+    # download_sentinel_data(
+    #     s3_client=env['s3_client'],
+    #     bucket_name=env['BUCKET_NAME'],
+    #     df_l1c=df_l1c,
+    #     df_l2a=df_l2a,
+    #     bands=env['BANDS'],
+    #     input_dir=env['input_dir'],
+    #     output_dir=env['output_dir'],
+    #     download_config=config['download']
+    # )
 
 if __name__ == "__main__":
     main()

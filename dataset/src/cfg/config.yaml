@@ -20,7 +20,7 @@ query:
     - 50.1833
 
   start_date: '2023-01-01'
-  end_date: '2023-01-15'
+  end_date: '2025-01-01'
   max_items: 1000
   max_cloud_cover: 100
 

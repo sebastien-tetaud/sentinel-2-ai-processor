@@ -340,9 +340,7 @@ for band in BANDS:
 # Optionally, test the model on a few validation samples
 model.eval()
 with torch.no_grad():
-    for i, (x_data, y_data) in enumerate(val_loader):
-        if i >= 12:
-            break
+    for i, (x_data, y_data) in enumerate(test_loader):
 
         x_data = x_data.to(device)
         y_data = y_data.to(device)

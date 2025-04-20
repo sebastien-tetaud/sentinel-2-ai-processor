@@ -31,10 +31,10 @@ def setup_environment(config):
     BANDS = config['bands']
 
     # Create directories
-    input_dir = os.path.join(DATASET_DIR, "input")
-    output_dir = os.path.join(DATASET_DIR, "output")
-    os.makedirs(input_dir, exist_ok=True)
-    os.makedirs(output_dir, exist_ok=True)
+    # input_dir = os.path.join(DATASET_DIR, "input")
+    # output_dir = os.path.join(DATASET_DIR, "output")
+    # os.makedirs(input_dir, exist_ok=True)
+    # os.makedirs(output_dir, exist_ok=True)
 
     # Setup connector
     connector = S3Connector(
@@ -50,8 +50,6 @@ def setup_environment(config):
         'BUCKET_NAME': BUCKET_NAME,
         'DATASET_DIR': DATASET_DIR,
         'BANDS': BANDS,
-        'input_dir': input_dir,
-        'output_dir': output_dir,
         's3_client': s3_client
     }
 
@@ -120,8 +118,8 @@ def main():
     import argparse
     parser = argparse.ArgumentParser(description='Download Sentinel data based on provided config and CSV files')
     parser.add_argument('--config', type=str, required=True, help='Path to the config file')
-    parser.add_argument('--l1c-csv', type=str, help='Path to L1C CSV file (will use default from config if not specified)')
-    parser.add_argument('--l2a-csv', type=str, help='Path to L2A CSV file (will use default from config if not specified)')
+    parser.add_argument('--l1c-csv', type=str, help='Path to L1C CSV file')
+    parser.add_argument('--l2a-csv', type=str, help='Path to L2A CSV file')
     args = parser.parse_args()
 
     # Load configuration
@@ -134,8 +132,14 @@ def main():
     setup_logger(env['DATASET_DIR'], "sentinel_download_log")
 
     # Determine CSV file paths
-    l1c_csv_path = args.l1c_csv if args.l1c_csv else f"{env['DATASET_DIR']}/input_l1c.csv"
-    l2a_csv_path = args.l2a_csv if args.l2a_csv else f"{env['DATASET_DIR']}/output_l2a.csv"
+    l1c_csv_path = args.l1c_csv
+    l2a_csv_path = args.l2a_csv
+
+    input_dir= l1c_csv_path.replace(".csv","")
+    output_dir = l2a_csv_path.replace(".csv","")
+
+
+
 
     # Log info
     logger.info(f"Using configuration from: {args.config}")
@@ -147,6 +151,7 @@ def main():
         df_l1c = pd.read_csv(l1c_csv_path)
         df_l2a = pd.read_csv(l2a_csv_path)
 
+
         logger.info(f"Loaded {len(df_l1c)} L1C records and {len(df_l2a)} L2A records")
 
         # Download data
@@ -156,8 +161,8 @@ def main():
             df_l1c=df_l1c,
             df_l2a=df_l2a,
             bands=env['BANDS'],
-            input_dir=env['input_dir'],
-            output_dir=env['output_dir'],
+            input_dir=input_dir,
+            output_dir=output_dir,
             download_config=config['download']
         )
 

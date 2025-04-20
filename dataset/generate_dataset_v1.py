@@ -1,219 +1,336 @@
-import io
 import os
-import sys
 import time
-import xml.etree.ElementTree as ET
+import yaml
+import shutil
 from datetime import datetime, timedelta
-
-import cv2
-import numpy as np
 import pandas as pd
 import requests
-from dotenv import load_dotenv
 from loguru import logger
-from PIL import Image
+from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()
 
-# Now import the module
+# Import modules
 from src.auth.auth import S3Connector
-from src.utils.utils import extract_s3_path_from_url
 from src.utils.utils import remove_last_segment_rsplit
-from src.utils.cdse_utils import (create_cdse_query_url, get_product,
-                                    parse_safe_manifest, download_manifest,
-                                    filter_band_files,  download_bands)
+from src.utils.cdse_utils import (create_cdse_query_url, download_bands)
 
+def load_config(config_path='config.yaml'):
+    """Load configuration from YAML file"""
+    with open(config_path, 'r') as file:
+        return yaml.safe_load(file)
 
-ACCESS_KEY_ID = os.environ.get("ACCESS_KEY_ID")
-SECRET_ACCESS_KEY = os.environ.get("SECRET_ACCESS_KEY")
-ENDPOINT_URL = 'https://eodata.dataspace.copernicus.eu'
-ENDPOINT_STAC = "https://stac.dataspace.copernicus.eu/v1/"
-DATASET_VERSION = "V2"
-BUCKET_NAME = "eodata"
-BASE_DIR = f"/mnt/disk/dataset/sentinel-ai-processor"
-DATASET_DIR = f"{BASE_DIR}/{DATASET_VERSION}"
-BANDS = ['B02','B03','B04']
+def save_config_copy(config, config_path, dataset_dir):
+    """Save a copy of the config file to the dataset directory"""
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    config_filename = os.path.basename(config_path)
+    config_name, config_ext = os.path.splitext(config_filename)
+    target_path = os.path.join(dataset_dir, f"{config_name}_{timestamp}{config_ext}")
 
-connector = S3Connector(
-    endpoint_url=ENDPOINT_URL,
-    access_key_id=ACCESS_KEY_ID,
-    secret_access_key=SECRET_ACCESS_KEY,
-    region_name='default')
-# Get S3 client and resource from the connector instance
-s3 = connector.get_s3_resource()
-s3_client = connector.get_s3_client()
-buckets = connector.list_buckets()
-bucket = s3.Bucket(BUCKET_NAME)
+    # Save a copy of the config to the dataset directory
+    with open(target_path, 'w') as file:
+        yaml.dump(config, file, default_flow_style=False)
 
-input_dir = os.path.join(DATASET_DIR, "input")
-output_dir = os.path.join(DATASET_DIR, "output")
-os.makedirs(input_dir, exist_ok=True)
-os.makedirs(output_dir, exist_ok=True)
+    logger.info(f"Saved configuration copy to {target_path}")
+    return target_path
 
-bbox = [3.2833, 45.3833, 11.2, 50.1833]
+def setup_environment(config):
+    """Set up environment variables and directories for the dataset"""
+    # Keep these from environment variables
+    ACCESS_KEY_ID = os.environ.get("ACCESS_KEY_ID")
+    SECRET_ACCESS_KEY = os.environ.get("SECRET_ACCESS_KEY")
 
-log_filename = f"{DATASET_DIR}/sentinel_query_log_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
-# Remove the default sink and add custom ones
-logger.remove()
-# Add a sink for the file with the format you want
-logger.add(log_filename, format="{time:YYYY-MM-DD HH:mm:ss} | {level} | {message}")
-# Add a sink for stdout with a simpler format
-logger.add(lambda msg: print(msg, end=""), colorize=True, format="{message}")
+    # Get other parameters from config
+    ENDPOINT_URL = config['endpoint_url']
+    ENDPOINT_STAC = config['endpoint_stac']
+    BUCKET_NAME = config['bucket_name']
+    DATASET_VERSION = config['dataset_version']
+    BASE_DIR = config['base_dir']
+    DATASET_DIR = f"{BASE_DIR}/{DATASET_VERSION}"
+    BANDS = config['bands']
 
-start_date = datetime(2023, 1, 1)
-end_date = datetime(2023, 1, 15)
-max_items = 1000
-max_cloud_cover = 100
+    # Create directories
+    input_dir = os.path.join(DATASET_DIR, "input")
+    output_dir = os.path.join(DATASET_DIR, "output")
+    os.makedirs(input_dir, exist_ok=True)
+    os.makedirs(output_dir, exist_ok=True)
 
-# Log query parameters
-logger.info(f"Query parameters:")
-logger.info(f"Bounding box: {bbox}")
-logger.info(f"Date range: {start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}")
-logger.info(f"Max items per request: {max_items}")
-logger.info(f"Max cloud cover: {max_cloud_cover}%")
-# Generate the polygon string from bbox [minx, miny, maxx, maxy]
-polygon = f"POLYGON (({bbox[0]} {bbox[1]}, {bbox[0]} {bbox[3]}, {bbox[2]} {bbox[3]}, {bbox[2]} {bbox[1]}, {bbox[0]} {bbox[1]}))"
+    # Setup connector
+    connector = S3Connector(
+        endpoint_url=ENDPOINT_URL,
+        access_key_id=ACCESS_KEY_ID,
+        secret_access_key=SECRET_ACCESS_KEY,
+        region_name='default')
 
-# Initialize empty lists to store all results
-all_l1c_results = []
-all_l2a_results = []
+    s3 = connector.get_s3_resource()
+    s3_client = connector.get_s3_client()
+    bucket = s3.Bucket(BUCKET_NAME)
 
-# Loop through the date range with a step of 5 days
-current_date = start_date
-while current_date < end_date:
-    # Calculate the end of the current 5-day interval
-    next_date = min(current_date + timedelta(days=10), end_date)
+    return {
+        'ENDPOINT_URL': ENDPOINT_URL,
+        'ENDPOINT_STAC': ENDPOINT_STAC,
+        'BUCKET_NAME': BUCKET_NAME,
+        'DATASET_VERSION': DATASET_VERSION,
+        'BASE_DIR': BASE_DIR,
+        'DATASET_DIR': DATASET_DIR,
+        'BANDS': BANDS,
+        'input_dir': input_dir,
+        'output_dir': output_dir,
+        's3': s3,
+        's3_client': s3_client,
+        'bucket': bucket
+    }
 
-    # Format the dates as required for the OData query (ISO format with Z for UTC)
-    start_interval = f"{current_date.strftime('%Y-%m-%dT00:00:00.000Z')}"
-    end_interval = f"{next_date.strftime('%Y-%m-%dT23:59:59.999Z')}"
+def setup_logger(log_path, filename_prefix):
+    """Setup logger with specified path and prefix"""
+    log_filename = f"{log_path}/{filename_prefix}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
+    logger.remove()
+    logger.add(log_filename, format="{time:YYYY-MM-DD HH:mm:ss} | {level} | {message}")
+    logger.add(lambda msg: print(msg, end=""), colorize=True, format="{message}")
+    return log_filename
 
-    date_interval = f"{current_date.strftime('%Y-%m-%d')}/{next_date.strftime('%Y-%m-%d')}"
+def query_sentinel_data(bbox, start_date, end_date, max_items, max_cloud_cover):
+    """Query Sentinel data for the specified parameters"""
+    # Generate the polygon string from bbox [minx, miny, maxx, maxy]
+    polygon = f"POLYGON (({bbox[0]} {bbox[1]}, {bbox[0]} {bbox[3]}, {bbox[2]} {bbox[3]}, {bbox[2]} {bbox[1]}, {bbox[0]} {bbox[1]}))"
 
-    try:
+    # Initialize empty lists to store all results
+    all_l1c_results = []
+    all_l2a_results = []
 
-        l2a_query_url = create_cdse_query_url(
-            product_type="MSIL2A",
-            polygon=polygon,
-            start_interval=start_interval,
-            end_interval=end_interval,
-            max_cloud_cover=max_cloud_cover,
-            max_items=max_items,
-            orderby="ContentDate/Start"
-        )
-        # Search for Sentinel-2 L2A products for this interval
-        l2a_json = requests.get(l2a_query_url).json()
+    # Loop through the date range with a step of 10 days
+    current_date = start_date
+    while current_date < end_date:
+        # Calculate the end of the current interval
+        next_date = min(current_date + timedelta(days=10), end_date)
 
-        # Add interval as metadata to each item
-        l2a_results = l2a_json.get('value', [])
-        for item in l2a_results:
-            item['query_interval'] = date_interval
+        # Format the dates for the OData query
+        start_interval = f"{current_date.strftime('%Y-%m-%dT00:00:00.000Z')}"
+        end_interval = f"{next_date.strftime('%Y-%m-%dT23:59:59.999Z')}"
 
+        date_interval = f"{current_date.strftime('%Y-%m-%d')}/{next_date.strftime('%Y-%m-%d')}"
 
-        l1c_query_url = create_cdse_query_url(
-            product_type="MSIL1C",
-            polygon=polygon,
-            start_interval=start_interval,
-            end_interval=end_interval,
-            max_cloud_cover=max_cloud_cover,
-            max_items=max_items,
-            orderby="ContentDate/Start"
-        )
-        # Search for Sentinel-2 L1C products for this interval
-        l1c_json = requests.get(l1c_query_url).json()
+        try:
+            # Query for L2A products
+            l2a_query_url = create_cdse_query_url(
+                product_type="MSIL2A",
+                polygon=polygon,
+                start_interval=start_interval,
+                end_interval=end_interval,
+                max_cloud_cover=max_cloud_cover,
+                max_items=max_items,
+                orderby="ContentDate/Start"
+            )
+            l2a_json = requests.get(l2a_query_url).json()
+            l2a_results = l2a_json.get('value', [])
 
-        # Add interval as metadata to each item
-        l1c_results = l1c_json.get('value', [])
-        for item in l1c_results:
-            item['query_interval'] = date_interval
+            # Add interval metadata
+            for item in l2a_results:
+                item['query_interval'] = date_interval
 
-        # Count L1C products
-        l1c_count = len(l1c_results)
-        l2a_count = len(l2a_results)
+            # Query for L1C products
+            l1c_query_url = create_cdse_query_url(
+                product_type="MSIL1C",
+                polygon=polygon,
+                start_interval=start_interval,
+                end_interval=end_interval,
+                max_cloud_cover=max_cloud_cover,
+                max_items=max_items,
+                orderby="ContentDate/Start"
+            )
+            l1c_json = requests.get(l1c_query_url).json()
+            l1c_results = l1c_json.get('value', [])
 
-        if l1c_count == l2a_count:
-            # Append to the overall results list?
+            # Add interval metadata
+            for item in l1c_results:
+                item['query_interval'] = date_interval
+
+            # Log counts
+            l1c_count = len(l1c_results)
+            l2a_count = len(l2a_results)
+
+            if l1c_count != l2a_count:
+                logger.warning(f"Mismatch in counts for {date_interval}: L1C={l1c_count}, L2A={l2a_count}")
+
+            # Append results
             all_l1c_results.extend(l1c_results)
             all_l2a_results.extend(l2a_results)
-        else:
-            logger.warning(f"Mismatch in counts for {date_interval}: L1C={l1c_count}, L2A={l2a_count}")
-            all_l1c_results.extend(l1c_results)
-            all_l2a_results.extend(l2a_results)
 
-        # Print results for this interval
-        logger.info(f"L1C Items for {date_interval}: {l1c_count}")
-        logger.info(f"L2A Items for {date_interval}: {l2a_count}")
-        logger.info("####")
+            logger.info(f"L1C Items for {date_interval}: {l1c_count}")
+            logger.info(f"L2A Items for {date_interval}: {l2a_count}")
+            logger.info("####")
 
-    except Exception as e:
-        logger.error(f"Error processing interval {date_interval}: {str(e)}")
-    # Move to the next n-day interval
-    current_date = next_date
+        except Exception as e:
+            logger.error(f"Error processing interval {date_interval}: {str(e)}")
 
-# Create DataFrames from the collected results
-df_l1c = pd.DataFrame(all_l1c_results)
-df_l2a = pd.DataFrame(all_l2a_results)
-# Select only the required columns
-# Select only the required columns
-df_l2a = df_l2a[["Name", "S3Path", "Footprint", "GeoFootprint","Attributes"]]
-df_l1c = df_l1c[["Name", "S3Path", "Footprint", "GeoFootprint","Attributes"]]
+        # Move to the next interval
+        current_date = next_date
 
-df_l1c['cloud_cover'] = df_l1c['Attributes'].apply(lambda x: x[2]["Value"])
-df_l2a['cloud_cover'] = df_l2a['Attributes'].apply(lambda x: x[2]["Value"])
+    return all_l1c_results, all_l2a_results
 
-# Create the id_key column based on the function
-df_l2a['id_key'] = df_l2a['Name'].apply(remove_last_segment_rsplit)
-df_l2a['id_key'] = df_l2a['id_key'].str.replace('MSIL2A_', 'MSIL1C_')  # Replace prefix for matching
-df_l1c['id_key'] = df_l1c['Name'].apply(remove_last_segment_rsplit)
+def queries_curation(all_l1c_results, all_l2a_results):
+    """Process and align L1C and L2A data to ensure they match"""
+    # Create DataFrames
+    df_l1c = pd.DataFrame(all_l1c_results)
+    df_l2a = pd.DataFrame(all_l2a_results)
 
-# Step 1: Drop duplicates in each DataFrame and keep the first occurrence
-df_l2a = df_l2a.drop_duplicates(subset='id_key', keep='first')
-df_l1c = df_l1c.drop_duplicates(subset='id_key', keep='first')
+    # Select required columns
+    df_l2a = df_l2a[["Name", "S3Path", "Footprint", "GeoFootprint", "Attributes"]]
+    df_l1c = df_l1c[["Name", "S3Path", "Footprint", "GeoFootprint", "Attributes"]]
 
-# Step 2: Find the common id_keys to ensure both DataFrames have the same order
-df_l2a = df_l2a[df_l2a['id_key'].isin(df_l1c['id_key'])]
-df_l1c = df_l1c[df_l1c['id_key'].isin(df_l2a['id_key'])]
+    # Extract cloud cover
+    df_l1c['cloud_cover'] = df_l1c['Attributes'].apply(lambda x: x[2]["Value"])
+    df_l2a['cloud_cover'] = df_l2a['Attributes'].apply(lambda x: x[2]["Value"])
+    # Drop the Attributes column (note: inplace=True needed or need to reassign)
+    df_l1c = df_l1c.drop(columns=['Attributes'], axis=1)
+    df_l2a = df_l2a.drop(columns=['Attributes'], axis=1)
+    # Create id_key for matching
+    df_l2a['id_key'] = df_l2a['Name'].apply(remove_last_segment_rsplit)
+    df_l2a['id_key'] = df_l2a['id_key'].str.replace('MSIL2A_', 'MSIL1C_')  # Replace prefix for matching
+    df_l1c['id_key'] = df_l1c['Name'].apply(remove_last_segment_rsplit)
 
-# Step 3: Align the DataFrames by the order of id_key
-df_l2a = df_l2a.set_index('id_key')
-df_l1c = df_l1c.set_index('id_key')
+    # Remove duplicates
+    df_l2a = df_l2a.drop_duplicates(subset='id_key', keep='first')
+    df_l1c = df_l1c.drop_duplicates(subset='id_key', keep='first')
 
-df_l2a = df_l2a.loc[df_l1c.index].reset_index()
-df_l1c = df_l1c.reset_index()
+    # Align both datasets
+    df_l2a = df_l2a[df_l2a['id_key'].isin(df_l1c['id_key'])]
+    df_l1c = df_l1c[df_l1c['id_key'].isin(df_l2a['id_key'])]
 
-df_l1c.to_csv(f"{DATASET_DIR}/input_l1c.csv")
-df_l2a.to_csv(f"{DATASET_DIR}/output_l2a.csv")
+    # Make sure the order is the same
+    df_l2a = df_l2a.set_index('id_key')
+    df_l1c = df_l1c.set_index('id_key')
 
-# df_l1c = df_l1c.sample(n=15000, random_state=42)
-# df_l2a = df_l2a.sample(n=15000, random_state=42)
-df_l1c = df_l1c.reset_index(drop=True)
-df_l2a = df_l2a.reset_index(drop=True)
+    df_l2a = df_l2a.loc[df_l1c.index].reset_index()
+    df_l1c = df_l1c.reset_index()
 
-for i in range(min(len(df_l1c), len(df_l2a))):
-    if df_l1c['id_key'][i] == df_l2a['id_key'][i]:
-        print(f"Match: {df_l1c['id_key'][i]} == {df_l2a['id_key'][i]}")
+    return df_l1c, df_l2a
+
+def validate_data_alignment(df_l1c, df_l2a):
+    """Validate that the data is properly aligned"""
+    mismatches = 0
+    for i in range(min(len(df_l1c), len(df_l2a))):
+        if df_l1c['id_key'][i] != df_l2a['id_key'][i]:
+            logger.error(f"Mismatch: {df_l1c['id_key'][i]} != {df_l2a['id_key'][i]}")
+            mismatches += 1
+
+    if mismatches == 0:
+        logger.info(f"All {len(df_l1c)} records are properly aligned")
     else:
-        print(f"Mismatch: {df_l1c['id_key'][i]} != {df_l2a['id_key'][i]}")
-
-df_l1c.to_csv(f"{DATASET_DIR}/sample_input_l1c.csv")
-df_l2a.to_csv(f"{DATASET_DIR}/sample_output_l2a.csv")
-
-log_filename = f"{DATASET_DIR}/sentinel_download_log_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
-# Remove the default sink and add custom ones
-logger.remove()
-# Add a sink for the file with the format you want
-logger.add(log_filename, format="{time:YYYY-MM-DD HH:mm:ss} | {level} | {message}")
-# Add a sink for stdout with a simpler format
-logger.add(lambda msg: print(msg, end=""), colorize=True, format="{message}")
+        logger.warning(f"Found {mismatches} mismatches in data alignment")
 
 
-# download_bands(s3_client=s3_client, bucket_name=BUCKET_NAME, df=df_l1c[:1],
-#                 product_type="L1C", bands=BANDS, resize=True, resolution=None, output_dir=input_dir,
-#                 max_attempts=10, retry_delay=10)
+def download_sentinel_data(s3_client, bucket_name, df_l1c, df_l2a, bands, input_dir, output_dir, download_config):
+    """Download the Sentinel data bands"""
+    sample_size = download_config.get('sample_size', None)
+    resize = download_config.get('resize', False)
+    resize_target = download_config.get('resize_target', 1830)
+    l1c_resolution = download_config.get('l1c_resolution', None)
+    l2a_resolution = download_config.get('l2a_resolution', 60)
+    max_attempts = download_config.get('max_attempts', 10)
+    retry_delay = download_config.get('retry_delay', 10)
 
-download_bands(s3_client=s3_client, bucket_name=BUCKET_NAME, df=df_l2a[:2],
-                product_type="L2A", bands=BANDS, resize=True, resolution=60, output_dir=output_dir,
-                max_attempts=10, retry_delay=20)
+    if sample_size:
+        df_l1c_sample = df_l1c[:sample_size]
+        df_l2a_sample = df_l2a[:sample_size]
+    else:
+        df_l1c_sample = df_l1c
+        df_l2a_sample = df_l2a
+
+    # Download L1C data
+    logger.info(f"Downloading {len(df_l1c_sample)} L1C samples...")
+    download_bands(
+        s3_client=s3_client,
+        bucket_name=bucket_name,
+        df=df_l1c_sample,
+        product_type="L1C",
+        bands=bands,
+        resize=resize,
+        resize_target=resize_target,
+        resolution=l1c_resolution,
+        output_dir=input_dir,
+        max_attempts=max_attempts,
+        retry_delay=retry_delay
+    )
+
+    # Download L2A data
+    logger.info(f"Downloading {len(df_l2a_sample)} L2A samples...")
+    download_bands(
+        s3_client=s3_client,
+        bucket_name=bucket_name,
+        df=df_l2a_sample,
+        product_type="L2A",
+        bands=bands,
+        resize=resize,
+        resize_target=resize_target,
+        resolution=l2a_resolution,
+        output_dir=output_dir,
+        max_attempts=max_attempts,
+        retry_delay=retry_delay
+    )
 
 
+def main():
+    config_path = 'src/cfg/config.yaml'
+
+    # Load configuration from YAML
+    config = load_config(config_path)
+
+    # Initialize environment using config
+    env = setup_environment(config)
+
+    # Save a copy of the config file to the dataset directory
+    saved_config_path = save_config_copy(config, config_path, env['DATASET_DIR'])
+
+    # Get query parameters from config
+    query_config = config['query']
+    bbox = query_config['bbox']
+    start_date = datetime.strptime(query_config['start_date'], '%Y-%m-%d')
+    end_date = datetime.strptime(query_config['end_date'], '%Y-%m-%d')
+    max_items = query_config['max_items']
+    max_cloud_cover = query_config['max_cloud_cover']
+
+    # Set up logger for query
+    setup_logger(env['DATASET_DIR'], "sentinel_query_log")
+
+    # Log query parameters
+    logger.info(f"Using configuration from: {saved_config_path}")
+    logger.info(f"Query parameters:")
+    logger.info(f"Bounding box: {bbox}")
+    logger.info(f"Date range: {start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}")
+    logger.info(f"Max items per request: {max_items}")
+    logger.info(f"Max cloud cover: {max_cloud_cover}%")
+
+    # Query Sentinel data
+    all_l1c_results, all_l2a_results = query_sentinel_data(
+        bbox, start_date, end_date, max_items, max_cloud_cover
+    )
+
+    # Process and align data
+    df_l1c, df_l2a = queries_curation(all_l1c_results, all_l2a_results)
+
+    # Save full datasets
+    df_l1c.to_csv(f"{env['DATASET_DIR']}/input_l1c.csv")
+    df_l2a.to_csv(f"{env['DATASET_DIR']}/output_l2a.csv")
+
+    # Validate alignment
+    validate_data_alignment(df_l1c, df_l2a)
+
+    # Set up logger for download
+    setup_logger(env['DATASET_DIR'], "sentinel_download_log")
+
+    # Download the data
+    # download_sentinel_data(
+    #     s3_client=env['s3_client'],
+    #     bucket_name=env['BUCKET_NAME'],
+    #     df_l1c=df_l1c,
+    #     df_l2a=df_l2a,
+    #     bands=env['BANDS'],
+    #     input_dir=env['input_dir'],
+    #     output_dir=env['output_dir'],
+    #     download_config=config['download']
+    # )
+
+if __name__ == "__main__":
+    main()

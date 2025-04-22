@@ -2,74 +2,71 @@
 
 import torch
 import torch.nn as nn
-from torchmetrics import MeanSquaredError
+from torchmetrics import Metric, MeanSquaredError
 from torchmetrics.image import PeakSignalNoiseRatio, StructuralSimilarityIndexMeasure
 from typing import Dict, List, Optional, Tuple
 
-class SpectralAngularMapper(nn.Module):
+
+
+
+class SpectralAngularMapper(Metric):
     """
-    Spectral Angular Mapper (SAM) metric for measuring spectral similarity.
-    SAM = arccos(dot(a,b) / (||a|| * ||b||))
+    Simplified Spectral Angular Mapper (SAM) metric that handles valid pixels.
     """
 
     def __init__(self):
-        super(SpectralAngularMapper, self).__init__()
-        self.total_sam = 0.0
-        self.count = 0
+        """Initialize the SAM metric."""
+        super().__init__()
 
-    def forward(self, pred: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
+        # Add states for tracking
+        self.add_state("sum_sam", default=torch.tensor(0.0), dist_reduce_fx="sum")
+        self.add_state("total_pixels", default=torch.tensor(0), dist_reduce_fx="sum")
+
+    def update(self, preds: torch.Tensor, target: torch.Tensor) -> None:
         """
-        Compute SAM between prediction and target.
+        Update state with predictions and targets.
 
         Args:
-            pred: Predictions tensor
-            target: Ground truth tensor
-
-        Returns:
-            SAM value (lower is better)
+            preds: Predictions tensor [B, C, H, W]
+            target: Target tensor [B, C, H, W]
         """
-        # Flatten spatial dimensions
-        pred_flat = pred.reshape(pred.shape[0], pred.shape[1], -1)
-        target_flat = target.reshape(target.shape[0], target.shape[1], -1)
+        # Create valid mask (True for valid pixels)
+        valid_mask = (target >= 0)
 
-        # Compute dot product
-        dot_product = torch.sum(pred_flat * target_flat, dim=1)
+        # Process each sample in batch
+        batch_size = preds.shape[0]
+        for b in range(batch_size):
+            # Get single-channel data for this sample
+            pred_b = preds[b, 0]  # Assuming single-channel input
+            target_b = target[b, 0]
+            mask_b = valid_mask[b, 0]
 
-        # Compute norms
-        pred_norm = torch.norm(pred_flat, dim=1)
-        target_norm = torch.norm(target_flat, dim=1)
+            # Skip if no valid pixels
+            if not torch.any(mask_b):
+                continue
 
-        # Avoid division by zero
-        eps = 1e-8
-        cos_sim = dot_product / (pred_norm * target_norm + eps)
+            # Get valid pixels
+            pred_valid = pred_b[mask_b]
+            target_valid = target_b[mask_b]
 
-        # Clip cosine similarity to [-1, 1] to avoid numerical issues
-        cos_sim = torch.clamp(cos_sim, -1.0, 1.0)
+            # Compute dot product and norms
+            dot_product = torch.sum(pred_valid * target_valid)
+            pred_norm = torch.sqrt(torch.sum(pred_valid ** 2))
+            target_norm = torch.sqrt(torch.sum(target_valid ** 2))
 
-        # Compute angle in radians and convert to degrees
-        angle = torch.acos(cos_sim) * (180.0 / torch.pi)
+            # Compute angle
+            cos_sim = dot_product / (pred_norm * target_norm + 1e-8)
+            # cos_sim = torch.clamp(cos_sim, -1.0, 1.0)  # Prevent numerical errors
+            angle = torch.acos(cos_sim)
 
-        # Return mean angle across batch
-        return angle.mean()
-
-    def update(self, pred: torch.Tensor, target: torch.Tensor) -> None:
-        """Update metric state with new predictions and targets."""
-        sam_value = self.forward(pred, target)
-        self.total_sam += sam_value.item() * pred.size(0)
-        self.count += pred.size(0)
-
-    def reset(self) -> None:
-        """Reset metric state."""
-        self.total_sam = 0.0
-        self.count = 0
+            # Update state
+            self.sum_sam += angle
+            self.total_pixels += 1
 
     def compute(self) -> torch.Tensor:
-        """Compute final result."""
-        return torch.tensor(self.total_sam / max(self.count, 1))
+        """Return the average SAM over all samples."""
+        return self.sum_sam / self.batch_size if self.batch_size > 0 else torch.tensor(0.0)
 
-    def result(self) -> torch.Tensor:
-        """Alias for compute() for backward compatibility."""
-        return self.compute()
 
 class MultiSpectralMetrics:
     """
@@ -95,7 +92,7 @@ class MultiSpectralMetrics:
                 'psnr': PeakSignalNoiseRatio(data_range=1.0).to(device),
                 'rmse': MeanSquaredError(squared=False).to(device),
                 'ssim': StructuralSimilarityIndexMeasure(data_range=1.0).to(device),
-                'sam': SpectralAngularMapper().to(device)
+                'sam': SpectralAngularMapper().to(device),
             }
 
     def update(self, outputs: torch.Tensor, targets: torch.Tensor) -> None:
@@ -114,31 +111,30 @@ class MultiSpectralMetrics:
             # Create channel-wise valid mask (True for valid pixels)
             valid_mask_c = (targets_c >= 0)
 
-            # Update metrics that work with tensors directly
+            # Only process if we have valid pixels
             if torch.any(valid_mask_c):
-                # For metrics that need 2D (dropping channel dim)
-                outputs_valid_c = outputs_c[valid_mask_c]
-                targets_valid_c = targets_c[valid_mask_c]
+                # For metrics that need 2D input (dropping channel dim)
+                outputs_valid = outputs_c.squeeze(1)[valid_mask_c.squeeze(1)]
+                targets_valid = targets_c.squeeze(1)[valid_mask_c.squeeze(1)]
 
-                self.metrics[band]['psnr'].update(outputs_valid_c, targets_valid_c)
-                self.metrics[band]['rmse'].update(outputs_valid_c, targets_valid_c)
+                self.metrics[band]['psnr'].update(outputs_valid, targets_valid)
+                self.metrics[band]['rmse'].update(outputs_valid, targets_valid)
 
-                # For metrics that need 4D (keeping batch and channel dims)
+                # For metrics that need 4D input (keeping batch and channel dims)
                 if valid_mask_c.all():
-                    # If all pixels are valid, use tensors as is for SSIM
+                    # If all pixels are valid, use tensors as is
                     self.metrics[band]['ssim'].update(outputs_c, targets_c)
-                    self.metrics[band]['sam'].update(outputs_c, targets_c)
                 else:
-                    # Handle partial valid pixels for metrics requiring full images
-                    # This requires creating masked versions that replace invalid pixels
+                    # Handle partial valid pixels for SSIM which needs full images
                     masked_outputs = outputs_c.clone()
                     masked_targets = targets_c.clone()
-                    # Replace invalid pixels with zeros (or another approach)
                     masked_outputs[~valid_mask_c] = 0
                     masked_targets[~valid_mask_c] = 0
 
                     self.metrics[band]['ssim'].update(masked_outputs, masked_targets)
-                    self.metrics[band]['sam'].update(masked_outputs, masked_targets)
+
+                # For SAM, pass the tensors directly - it handles masking internally
+                self.metrics[band]['sam'].update(outputs_c, targets_c)
 
     def compute(self) -> Dict[str, Dict[str, float]]:
         """
@@ -159,3 +155,5 @@ class MultiSpectralMetrics:
         for band in self.bands:
             for metric in self.metrics[band].values():
                 metric.reset()
+
+

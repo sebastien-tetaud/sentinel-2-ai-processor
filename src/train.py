@@ -12,7 +12,6 @@ from model_zoo.models import define_model
 import torch.optim as optim
 from utils.torch import count_parameters, seed_everything, load_model_weights
 from training.losses import masked_mse_loss
-from torchmetrics.image import PeakSignalNoiseRatio
 
 # Configure loguru logger
 log_dir = "logs"
@@ -94,11 +93,18 @@ best_epoch = 0
 best_val_loss = float('inf')
 step = 0
 
+# Initialize metrics dictionary with new metrics
 dict_metrics = {
     "train_loss": [],
     "train_psnr": {band: [] for band in BANDS},
+    "train_rmse": {band: [] for band in BANDS},
+    "train_ssim": {band: [] for band in BANDS},
+    "train_sam": {band: [] for band in BANDS},
     "val_loss": [],
     "val_psnr": {band: [] for band in BANDS},
+    "val_rmse": {band: [] for band in BANDS},
+    "val_ssim": {band: [] for band in BANDS},
+    "val_sam": {band: [] for band in BANDS},
 }
 
 save_path = "checkpoints"
@@ -111,16 +117,25 @@ weights_path = f"{save_path}/best_model.pth"
 # Training phase   #
 ####################
 
+
+from training.metrics import MultiSpectralMetrics
+import numpy as np
+import matplotlib.pyplot as plt
+
+# Initialize metrics trackers
+train_metrics_tracker = MultiSpectralMetrics(bands=BANDS, device=device)
+val_metrics_tracker = MultiSpectralMetrics(bands=BANDS, device=device)
+
 for epoch in range(NUM_EPOCHS):
     # Training phase
     model.train()
     train_loss = 0.0
-    psnr_channels = [
-        PeakSignalNoiseRatio(data_range=1.0).to(device) for _ in range(len(BANDS))
-    ]
+
+    # Reset metrics at the start of each epoch
+    train_metrics_tracker.reset()
 
     with tqdm(total=(len(train_dataset) - len(train_dataset) % BATCH_SIZE), ncols=100, colour='#3eedc4') as t:
-        t.set_description('epoch: {}/{}'.format(epoch, NUM_EPOCHS - 1))
+        t.set_description(f'epoch: {epoch}/{NUM_EPOCHS - 1}')
 
         for batch_idx, (x_data, y_data) in enumerate(train_loader):
             x_data = x_data.to(device)
@@ -129,29 +144,18 @@ for epoch in range(NUM_EPOCHS):
             # Clear gradients
             optimizer.zero_grad()
 
+            # Valid mask for loss calculation
             valid_mask = (y_data >= 0)
+
             # Forward pass
             outputs = model(x_data)
 
-            ## Compute metrics for each bands
-            for c, band in enumerate(BANDS):
-                # Extract channel c for both outputs and targets.
-                # E.g -> [32, 1, 1024, 1024]
-                outputs_c = outputs[:, c, :, :]
-                y_c = y_data[:, c, :, :]
-
-                # Create channel-wise valid mask. This mask is True for valid pixels.
-                valid_mask_c = (y_c >= 0)
-
-                # Select only the valid pixels.
-                outputs_valid_c = outputs_c[valid_mask_c]
-                y_valid_c = y_c[valid_mask_c]
-
-                # Update the metrics for to the channel.
-                psnr_channels[c].update(outputs_valid_c, y_valid_c)
+            # Update metrics for all bands
+            train_metrics_tracker.update(outputs, y_data)
 
             # Calculate loss
             loss = criterion(outputs[valid_mask], y_data[valid_mask])
+
             # Backward pass and optimize
             loss.backward()
             optimizer.step()
@@ -164,14 +168,27 @@ for epoch in range(NUM_EPOCHS):
             t.set_postfix(loss=batch_loss)
             t.update(x_data.size(0))
 
+    # Compute average loss and metrics for the epoch
     avg_train_loss = train_loss / len(train_loader)
     dict_metrics['train_loss'].append(avg_train_loss)
 
-    epoch_psnr_train = {}
-    for c, band in enumerate(BANDS):
-        avg_psnr = psnr_channels[c].compute().item()
-        epoch_psnr_train[band] = avg_psnr
-    dict_metrics['train_psnr'] = {band: dict_metrics['train_psnr'][band] + [epoch_psnr_train[band]] for band in BANDS}
+    # Get all metrics
+    train_epoch_metrics = train_metrics_tracker.compute()
+
+    # Store metrics in the existing dictionary
+    for band in BANDS:
+        dict_metrics['train_psnr'][band].append(train_epoch_metrics[band]['psnr'])
+        dict_metrics['train_rmse'][band].append(train_epoch_metrics[band]['rmse'])
+        dict_metrics['train_ssim'][band].append(train_epoch_metrics[band]['ssim'])
+        dict_metrics['train_sam'][band].append(train_epoch_metrics[band]['sam'])
+
+    # Print a summary of training metrics
+    logger.info(f"Epoch {epoch} training metrics:")
+    for band in BANDS:
+        logger.info(f"  {band}: PSNR={train_epoch_metrics[band]['psnr']:.2f}, "
+              f"RMSE={train_epoch_metrics[band]['rmse']:.4f}, "
+              f"SSIM={train_epoch_metrics[band]['ssim']:.4f}, "
+              f"SAM={train_epoch_metrics[band]['sam']:.2f}°")
 
     ####################
     # Validation phase #
@@ -179,10 +196,10 @@ for epoch in range(NUM_EPOCHS):
 
     model.eval()
     val_loss = 0.0
-    psnr_channels = [
-        PeakSignalNoiseRatio(data_range=1.0).to(device) for _ in range(len(BANDS))
-    ]
-    criterion = nn.MSELoss()
+
+    # Reset validation metrics
+    val_metrics_tracker.reset()
+
     with torch.no_grad():
         with tqdm(total=len(val_dataset), ncols=100, colour='#f4d160') as t:
             t.set_description('validation')
@@ -191,21 +208,14 @@ for epoch in range(NUM_EPOCHS):
                 x_data = x_data.to(device)
                 y_data = y_data.to(device)
                 valid_mask = (y_data >= 0)
+
                 # Forward pass
                 outputs = model(x_data)
-                ## Compute metrics for each bands
-                for c, band in enumerate(BANDS):
-                    # Extract channel c for both outputs and targets.
-                    outputs_c = outputs[:, c, :, :]
-                    y_c = y_data[:, c, :, :]
-                    # Create channel-wise valid mask. This mask is True for valid pixels.
-                    valid_mask_c = (y_c >= 0)
-                    # Select only the valid pixels.
-                    outputs_valid_c = outputs_c[valid_mask_c]
-                    y_valid_c = y_c[valid_mask_c]
-                    # Update the metrics for this channel.
-                    psnr_channels[c].update(outputs_valid_c, y_valid_c)
 
+                # Update validation metrics
+                val_metrics_tracker.update(outputs, y_data)
+
+                # Calculate loss
                 loss = criterion(outputs[valid_mask], y_data[valid_mask])
 
                 # Update statistics
@@ -216,20 +226,33 @@ for epoch in range(NUM_EPOCHS):
                 t.set_postfix(loss=batch_loss)
                 t.update(x_data.size(0))
 
+    # Compute average validation loss
     avg_val_loss = val_loss / len(val_loader)
     dict_metrics['val_loss'].append(avg_val_loss)
 
-    epoch_psnr_val = {}
-    for c, band in enumerate(BANDS):
-        avg_psnr = psnr_channels[c].compute().item()
-        epoch_psnr_val[band] = avg_psnr
+    # Get validation metrics
+    val_epoch_metrics = val_metrics_tracker.compute()
 
-    dict_metrics['val_psnr'] = {band: dict_metrics['val_psnr'][band] + [epoch_psnr_val[band]] for band in BANDS}
+    # Store validation metrics
+    for band in BANDS:
+        dict_metrics['val_psnr'][band].append(val_epoch_metrics[band]['psnr'])
+        dict_metrics['val_rmse'][band].append(val_epoch_metrics[band]['rmse'])
+        dict_metrics['val_ssim'][band].append(val_epoch_metrics[band]['ssim'])
+        dict_metrics['val_sam'][band].append(val_epoch_metrics[band]['sam'])
 
-    # Log epoch results
-    psnr_str_train = ", ".join([f"Train PSNR {band}: {epoch_psnr_train[band]:.4f}" for band in BANDS])
-    psnr_str_val = ", ".join([f"Val PSNR {band}: {epoch_psnr_val[band]:.4f}" for band in BANDS])
-    logger.info(f"Epoch {epoch+1}/{NUM_EPOCHS} - Train Loss: {avg_train_loss:.6f}, Val Loss: {avg_val_loss:.6f}, {psnr_str_train}, {psnr_str_val}")
+    # Print a summary of validation metrics
+    logger.info(f"Epoch {epoch} validation metrics:")
+    for band in BANDS:
+        logger.info(f"  {band}: PSNR={val_epoch_metrics[band]['psnr']:.2f}, "
+              f"RMSE={val_epoch_metrics[band]['rmse']:.4f}, "
+              f"SSIM={val_epoch_metrics[band]['ssim']:.4f}, "
+              f"SAM={val_epoch_metrics[band]['sam']:.2f}°")
+
+    # Log epoch results with all metrics
+    train_metrics_str = ", ".join([f"Train PSNR {band}: {train_epoch_metrics[band]['psnr']:.4f}" for band in BANDS])
+    val_metrics_str = ", ".join([f"Val PSNR {band}: {val_epoch_metrics[band]['psnr']:.4f}" for band in BANDS])
+
+
     # Save best model
     if avg_val_loss < best_val_loss:
         best_val_loss = avg_val_loss
@@ -238,29 +261,33 @@ for epoch in range(NUM_EPOCHS):
         logger.info(f"Saved best model with Val Loss: {best_val_loss:.6f} at epoch {best_epoch+1}")
 
 
+# Initialize test metrics dictionary
 test_metrics = {
-    "test_loss": [],
-    "test_psnr": {band: [] for band in BANDS},
+    "test_loss": 0.0,
+    "test_psnr": {band: 0.0 for band in BANDS},
+    "test_rmse": {band: 0.0 for band in BANDS},
+    "test_ssim": {band: 0.0 for band in BANDS},
+    "test_sam": {band: 0.0 for band in BANDS},
 }
+
 # Save final model
 torch.save(model.state_dict(), f"{save_path}/final_model.pth")
 logger.info(f"Training completed. Best Val Loss: {best_val_loss:.6f} at epoch {best_epoch+1}")
 logger.info("Model performance running on test data ...")
 torch.cuda.empty_cache()
-# Model Test
+
+# Model Test - load best model weights
 model = load_model_weights(model=model, filename=weights_path)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 model = model.to(device)
 
 model.eval()
-test_loss = 0.0  # Changed variable name from val_loss to test_loss
-psnr_channels = [
-    PeakSignalNoiseRatio(data_range=1.0).to(device) for _ in range(len(BANDS))
-]
-criterion = nn.MSELoss()
+test_loss = 0.0
+test_metrics_tracker = MultiSpectralMetrics(bands=BANDS, device=device)
+
 with torch.no_grad():
-    with tqdm(total=len(test_dataset), ncols=100, colour='#cc99ff') as t:
-        t.set_description('testing')  # Changed from 'validation' to 'testing'
+    with tqdm(total=(len(test_dataset) - len(test_dataset) % BATCH_SIZE), ncols=100, colour='#cc99ff') as t:
+        t.set_description('testing')
 
         for batch_idx, (x_data, y_data) in enumerate(test_loader):
             x_data = x_data.to(device)
@@ -270,22 +297,10 @@ with torch.no_grad():
             # Forward pass
             outputs = model(x_data)
 
-            ## Compute metrics for each bands
-            for c, band in enumerate(BANDS):
-                # Extract channel c for both outputs and targets.
-                outputs_c = outputs[:, c, :, :]
-                y_c = y_data[:, c, :, :]
+            # Update test metrics
+            test_metrics_tracker.update(outputs, y_data)
 
-                # Create channel-wise valid mask. This mask is True for valid pixels.
-                valid_mask_c = (y_c >= 0)
-
-                # Select only the valid pixels.
-                outputs_valid_c = outputs_c[valid_mask_c]
-                y_valid_c = y_c[valid_mask_c]
-
-                # Update the metrics for this channel.
-                psnr_channels[c].update(outputs_valid_c, y_valid_c)
-
+            # Calculate loss
             loss = criterion(outputs[valid_mask], y_data[valid_mask])
 
             # Update statistics
@@ -296,24 +311,31 @@ with torch.no_grad():
             t.set_postfix(loss=batch_loss)
             t.update(x_data.size(0))
 
+# Calculate average test loss
 avg_test_loss = test_loss / len(test_loader)
-test_metrics['test_loss'] = avg_test_loss  # You might need to update this line
+test_metrics['test_loss'] = avg_test_loss
 
-test_psnr = {}
-for c, band in enumerate(BANDS):
-    avg_psnr = psnr_channels[c].compute().item()
-    test_psnr[band] = avg_psnr
-    print(f"Band {band}: Test PSNR: {avg_psnr:.4f}")
+# Get test metrics
+test_epoch_metrics = test_metrics_tracker.compute()
 
-test_metrics["test_psnr"] = test_psnr
+# Store test metrics
+for band in BANDS:
+    test_metrics['test_psnr'][band] = test_epoch_metrics[band]['psnr']
+    test_metrics['test_rmse'][band] = test_epoch_metrics[band]['rmse']
+    test_metrics['test_ssim'][band] = test_epoch_metrics[band]['ssim']
+    test_metrics['test_sam'][band] = test_epoch_metrics[band]['sam']
 
-psnr_str_test = ", ".join([f"Test PSNR {band}: {test_psnr[band]:.4f}" for band in BANDS])
-logger.info(f"Test Loss: {avg_test_loss:.6f}, {psnr_str_test}")
+    # Print metrics for each band
+    print(f"Band {band}: Test PSNR: {test_epoch_metrics[band]['psnr']:.4f}, "
+          f"RMSE: {test_epoch_metrics[band]['rmse']:.4f}, "
+          f"SSIM: {test_epoch_metrics[band]['ssim']:.4f}, "
+          f"SAM: {test_epoch_metrics[band]['sam']:.2f}°")
+
+# Log test metrics
+test_metrics_str = ", ".join([f"Test PSNR {band}: {test_metrics['test_psnr'][band]:.4f}" for band in BANDS])
+logger.info(f"Test Loss: {avg_test_loss:.6f}, {test_metrics_str}")
 
 # Save metrics
-import matplotlib.pyplot as plt
-import numpy as np
-
 # Plot loss curves
 plt.figure(figsize=(10, 6))
 plt.plot(dict_metrics['train_loss'], label='Train Loss')
@@ -325,8 +347,9 @@ plt.legend()
 plt.savefig(f"{save_path}/loss_curves.png")
 logger.info(f"Loss curves saved to {save_path}/loss_curves.png")
 
-# Plot PSNR curves for each band
+# Plot metrics curves for each band
 for band in BANDS:
+    # PSNR curves
     plt.figure(figsize=(10, 6))
     plt.plot(dict_metrics['train_psnr'][band], label='Train PSNR')
     plt.plot(dict_metrics['val_psnr'][band], label='Validation PSNR')
@@ -335,12 +358,45 @@ for band in BANDS:
     plt.title(f'Training and Validation PSNR for Band {band}')
     plt.legend()
     plt.savefig(f"{save_path}/psnr_curves_band_{band}.png")
-    logger.info(f"PSNR curves for band {band} saved to {save_path}/psnr_curves_band_{band}.png")
+
+    # RMSE curves
+    plt.figure(figsize=(10, 6))
+    plt.plot(dict_metrics['train_rmse'][band], label='Train RMSE')
+    plt.plot(dict_metrics['val_rmse'][band], label='Validation RMSE')
+    plt.xlabel('Epochs')
+    plt.ylabel('RMSE')
+    plt.title(f'Training and Validation RMSE for Band {band}')
+    plt.legend()
+    plt.savefig(f"{save_path}/rmse_curves_band_{band}.png")
+
+    # SSIM curves
+    plt.figure(figsize=(10, 6))
+    plt.plot(dict_metrics['train_ssim'][band], label='Train SSIM')
+    plt.plot(dict_metrics['val_ssim'][band], label='Validation SSIM')
+    plt.xlabel('Epochs')
+    plt.ylabel('SSIM')
+    plt.title(f'Training and Validation SSIM for Band {band}')
+    plt.legend()
+    plt.savefig(f"{save_path}/ssim_curves_band_{band}.png")
+
+    # SAM curves
+    plt.figure(figsize=(10, 6))
+    plt.plot(dict_metrics['train_sam'][band], label='Train SAM')
+    plt.plot(dict_metrics['val_sam'][band], label='Validation SAM')
+    plt.xlabel('Epochs')
+    plt.ylabel('SAM (degrees)')
+    plt.title(f'Training and Validation SAM for Band {band}')
+    plt.legend()
+    plt.savefig(f"{save_path}/sam_curves_band_{band}.png")
+
+    logger.info(f"Metric curves for band {band} saved to {save_path}/")
 
 # Optionally, test the model on a few validation samples
 model.eval()
 with torch.no_grad():
     for i, (x_data, y_data) in enumerate(test_loader):
+        if i >= 5:  # Only process the first 5 samples
+            break
 
         x_data = x_data.to(device)
         y_data = y_data.to(device)
@@ -351,6 +407,7 @@ with torch.no_grad():
         x_np = x_data.cpu().numpy()[0].transpose(1, 2, 0)  # First image in batch, CHW to HWC
         y_np = y_data.cpu().numpy()[0].transpose(1, 2, 0)
         pred_np = output.cpu().numpy()[0].transpose(1, 2, 0)
+
         # Clip values to valid range for visualization
         x_np = np.clip(x_np, 0, 1)
         y_np = np.clip(y_np, 0, 1)
@@ -369,3 +426,33 @@ with torch.no_grad():
         plt.close()
 
 logger.info("Testing completed. Sample predictions saved.")
+
+# Save all metrics to CSV for easy analysis
+import pandas as pd
+
+# Training and validation metrics per epoch
+for metric_type in ['psnr', 'rmse', 'ssim', 'sam']:
+    df_data = {
+        'epoch': list(range(NUM_EPOCHS))
+    }
+
+    for phase in ['train', 'val']:
+        for band in BANDS:
+            df_data[f'{phase}_{band}'] = dict_metrics[f'{phase}_{metric_type}'][band]
+
+    df = pd.DataFrame(df_data)
+    df.to_csv(f"{save_path}/{metric_type}_metrics.csv", index=False)
+    logger.info(f"Saved {metric_type} metrics to {save_path}/{metric_type}_metrics.csv")
+
+# Test metrics summary
+test_summary = {
+    'band': BANDS,
+    'psnr': [test_metrics['test_psnr'][band] for band in BANDS],
+    'rmse': [test_metrics['test_rmse'][band] for band in BANDS],
+    'ssim': [test_metrics['test_ssim'][band] for band in BANDS],
+    'sam': [test_metrics['test_sam'][band] for band in BANDS]
+}
+
+df_test = pd.DataFrame(test_summary)
+df_test.to_csv(f"{save_path}/test_metrics_summary.csv", index=False)
+logger.info(f"Saved test metrics summary to {save_path}/test_metrics_summary.csv")

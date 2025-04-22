@@ -303,7 +303,7 @@ test_psnr = {}
 for c, band in enumerate(BANDS):
     avg_psnr = psnr_channels[c].compute().item()
     test_psnr[band] = avg_psnr
-    print(f"Band {band}: Test PSNR (torcheval): {avg_psnr:.4f}")
+    print(f"Band {band}: Test PSNR: {avg_psnr:.4f}")
 
 test_metrics["test_psnr"] = test_psnr
 

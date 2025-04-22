@@ -138,9 +138,6 @@ def main():
     input_dir= l1c_csv_path.replace(".csv","")
     output_dir = l2a_csv_path.replace(".csv","")
 
-
-
-
     # Log info
     logger.info(f"Using configuration from: {args.config}")
     logger.info(f"Loading L1C data from: {l1c_csv_path}")
@@ -150,7 +147,6 @@ def main():
     try:
         df_l1c = pd.read_csv(l1c_csv_path)
         df_l2a = pd.read_csv(l2a_csv_path)
-
 
         logger.info(f"Loaded {len(df_l1c)} L1C records and {len(df_l2a)} L2A records")
 

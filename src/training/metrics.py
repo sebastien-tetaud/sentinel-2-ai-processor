@@ -1,12 +1,8 @@
-# Save this to /home/ubuntu/project/sentinel-2-ai-processor/src/training/metrics.py
-
 import torch
 import torch.nn as nn
 from torchmetrics import Metric, MeanSquaredError
 from torchmetrics.image import PeakSignalNoiseRatio, StructuralSimilarityIndexMeasure
 from typing import Dict, List, Optional, Tuple
-
-
 
 
 class SpectralAngularMapper(Metric):
@@ -65,7 +61,7 @@ class SpectralAngularMapper(Metric):
 
     def compute(self) -> torch.Tensor:
         """Return the average SAM over all samples."""
-        return self.sum_sam / self.batch_size if self.batch_size > 0 else torch.tensor(0.0)
+        return self.sum_sam / self.total_pixels if self.total_pixels > 0 else torch.tensor(0.0)
 
 
 class MultiSpectralMetrics:

@@ -125,11 +125,15 @@ def build_opt(model, config):
         lr=float(config['TRAINING']['learning_rate']),
         # You can add additional optimizer parameters from config here
     )
-
+    scheduler = config['TRAINING']['scheduler']
+    if scheduler:
+        logger.info(f"schduler type: {config['TRAINING']['scheduler_type']}")
+        lr_scheduler = getattr(torch.optim.lr_scheduler, config['TRAINING']['scheduler_type'])
+        scheduler_class = lr_scheduler(optimizer, mode='min')
     # Create the loss criterion
     criterion = nn.MSELoss()
 
-    return optimizer, criterion
+    return optimizer, criterion, scheduler, scheduler_class
 
 
 def train_epoch(model, train_loader, optimizer, criterion, device, metrics_tracker):
@@ -249,7 +253,7 @@ def main():
 
     train_loader, val_loader, test_loader = prepare_data(config)
     model, device = build_model(config)
-    optimizer, criterion = build_opt(model, config)
+    optimizer, criterion, scheduler, scheduler_class = build_opt(model, config)
 
     bands = config['DATASET']['bands']
     num_epochs = config['TRAINING']['n_epoch']
@@ -277,6 +281,12 @@ def main():
         train_loss, train_metrics = train_epoch(model, train_loader, optimizer, criterion, device, train_metrics_tracker)
         val_loss, val_metrics = validate(model, val_loader, criterion, device, val_metrics_tracker)
 
+        if scheduler:
+            logger.error("scheduler")
+            scheduler_class.step(val_loss)
+
+        current_lr = optimizer.param_groups[0]['lr']
+        logger.info(f"Current learning rate: {current_lr:.8f}")
         logger.info(f"Epoch {epoch+1}: Train Loss={train_loss:.6f}, Val Loss={val_loss:.6f}")
         logger.info(f"Epoch {epoch+1} validation metrics:")
 

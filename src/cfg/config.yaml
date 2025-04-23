@@ -16,14 +16,13 @@ MODEL:
 
 TRAINING:
     seed: 42
-    resize : 1024
+    resize : 64
     learning_rate: 1e-3
     scheduler: True
     scheduler_type: ReduceLROnPlateau
-    optim: Adam
-
+    optim: SGD
     batch_size: 16
-    n_epoch: 5
+    n_epoch: 10
     num_workers : 8
 
 

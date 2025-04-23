@@ -1,22 +1,23 @@
 import os
-import torch
-import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
-from tqdm import tqdm
-from loguru import logger
 from datetime import datetime
+
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import torch
+import torch.nn as nn
+import torch.optim as optim
+import yaml
+from loguru import logger
+from tqdm import tqdm
 
 from data.dataset import Sentinel2Dataset
 from data.loader import define_loaders
 from model_zoo.models import define_model
-from utils.utils import load_config
-from utils.torch import count_parameters, seed_everything, load_model_weights
 from training.metrics import MultiSpectralMetrics
-import torch.nn as nn
-import torch.optim as optim
+from utils.torch import count_parameters, load_model_weights, seed_everything
+from utils.utils import load_config
 
-import yaml
 
 def create_result_dirs(base_dir="results"):
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
@@ -35,6 +36,7 @@ def create_result_dirs(base_dir="results"):
         "metrics_path": metrics_path,
         "log_path": log_path
     }
+
 
 def setup_environment(config, log_path):
     os.makedirs(os.path.dirname(log_path), exist_ok=True)
@@ -87,6 +89,7 @@ def prepare_data(config):
 
     return train_loader, val_loader, test_loader
 
+
 def build_model(config):
     model = define_model(
         name=config['MODEL']['model_name'],
@@ -97,9 +100,37 @@ def build_model(config):
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model = model.to(device)
-    optimizer = optim.Adam(model.parameters(), lr=float(config['TRAINING']['learning_rate']))
+
+
+    return model, device
+
+
+def build_opt(model, config):
+    """
+    Build optimizer and loss function based on configuration
+
+    Args:
+        model: PyTorch model whose parameters will be optimized
+        config: Configuration dictionary with training parameters
+
+    Returns:
+        tuple: (optimizer, criterion)
+    """
+    # Get the optimizer class dynamically using getattr
+    optimizer_class = getattr(torch.optim, config['TRAINING']['optim'])
+
+    # Create the optimizer with parameters from config
+    optimizer = optimizer_class(
+        model.parameters(),
+        lr=float(config['TRAINING']['learning_rate']),
+        # You can add additional optimizer parameters from config here
+    )
+
+    # Create the loss criterion
     criterion = nn.MSELoss()
-    return model, optimizer, criterion, device
+
+    return optimizer, criterion
+
 
 def train_epoch(model, train_loader, optimizer, criterion, device, metrics_tracker):
     model.train()
@@ -124,6 +155,7 @@ def train_epoch(model, train_loader, optimizer, criterion, device, metrics_track
 
     return train_loss / len(train_loader), metrics_tracker.compute()
 
+
 def validate(model, val_loader, criterion, device, metrics_tracker):
     model.eval()
     metrics_tracker.reset()
@@ -144,6 +176,7 @@ def validate(model, val_loader, criterion, device, metrics_tracker):
 
     return val_loss / len(val_loader), metrics_tracker.compute()
 
+
 def test_model(model, test_loader, criterion, device, metrics_tracker):
     model.eval()
     metrics_tracker.reset()
@@ -163,6 +196,7 @@ def test_model(model, test_loader, criterion, device, metrics_tracker):
                 t.update(x_data.size(0))
 
     return test_loss / len(test_loader), metrics_tracker.compute()
+
 
 def save_all_metrics(dict_metrics, test_metrics, bands, num_epochs, save_path, train_losses, val_losses):
     os.makedirs(save_path, exist_ok=True)
@@ -200,6 +234,7 @@ def save_all_metrics(dict_metrics, test_metrics, bands, num_epochs, save_path, t
     df_loss.to_csv(loss_path, index=False)
     logger.info(f"Saved train/val losses to {loss_path}")
 
+
 def main():
 
     config = load_config(config_path="cfg/config.yaml")
@@ -213,7 +248,8 @@ def main():
     save_config_to_log(config, paths['result_dir'])
 
     train_loader, val_loader, test_loader = prepare_data(config)
-    model, optimizer, criterion, device = build_model(config)
+    model, device = build_model(config)
+    optimizer, criterion = build_opt(model, config)
 
     bands = config['DATASET']['bands']
     num_epochs = config['TRAINING']['n_epoch']

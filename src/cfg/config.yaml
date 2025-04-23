@@ -16,10 +16,10 @@ MODEL:
 
 TRAINING:
     seed: 42
-    resize : 512
+    resize : 1024
     learning_rate: 1e-3
     batch_size: 16
-    n_epoch: 10
+    n_epoch: 200
     num_workers : 8
 
 

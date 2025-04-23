@@ -22,7 +22,7 @@ TRAINING:
     scheduler_type: ReduceLROnPlateau
     optim: Adam
     batch_size: 16
-    n_epoch: 10
+    n_epoch: 200
     num_workers : 8
 
 

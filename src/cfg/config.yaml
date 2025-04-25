@@ -1,5 +1,5 @@
 DATASET:
-  version: "V1"
+  version: "V2"
   base_dir: "/mnt/disk/dataset/sentinel-ai-processor"
   bands : ["B02", "B03", "B04"]
 

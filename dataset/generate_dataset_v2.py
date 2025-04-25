@@ -193,7 +193,7 @@ def queries_curation(all_l1c_results, all_l2a_results):
     df_l2a = df_l2a.drop(columns=['Attributes'], axis=1)
     # Create id_key for matching
     df_l2a['id_key'] = df_l2a['Name'].apply(remove_last_segment_rsplit)
-    df_l2a['id_key'] = df_l2a['id_key'].str.replace('MSIL2A_', 'MSIL1C_')  # Replace prefix for matching
+    df_l2a['id_key'] = df_l2a['id_key'].str.replace('MSIL2A_', 'MSIL1C_')
     df_l1c['id_key'] = df_l1c['Name'].apply(remove_last_segment_rsplit)
 
     # Remove duplicates

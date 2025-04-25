@@ -5,7 +5,7 @@ import cv2
 from torch.utils.data import Dataset
 from data.transform import get_transforms
 
-class Sentinel2Dataset(Dataset):
+class Sentinel2TCIDataset(Dataset):
     def __init__(self, df_path,
                  train,
                  augmentation,

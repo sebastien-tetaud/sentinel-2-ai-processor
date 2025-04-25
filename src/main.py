@@ -12,7 +12,7 @@ import wandb
 from loguru import logger
 from tqdm import tqdm
 
-from data.dataset import Sentinel2Dataset
+from data.dataset import Sentinel2TCIDataset
 from data.loader import define_loaders
 from model_zoo.models import define_model
 from training.metrics import MultiSpectralMetrics
@@ -62,9 +62,9 @@ def prepare_data(config):
     df_val = pd.read_csv(f"{base_dir}/{version}/val_path.csv")
     df_test = pd.read_csv(f"{base_dir}/{version}/test_path.csv")
 
-    train_dataset = Sentinel2Dataset(df_path=df_train, train=True, augmentation=False, img_size=resize)
-    val_dataset = Sentinel2Dataset(df_path=df_val, train=False, augmentation=False, img_size=resize)
-    test_dataset = Sentinel2Dataset(df_path=df_test, train=True, augmentation=False, img_size=resize)
+    train_dataset = Sentinel2TCIDataset(df_path=df_train, train=True, augmentation=False, img_size=resize)
+    val_dataset = Sentinel2TCIDataset(df_path=df_val, train=False, augmentation=False, img_size=resize)
+    test_dataset = Sentinel2TCIDataset(df_path=df_test, train=True, augmentation=False, img_size=resize)
 
     train_loader, val_loader = define_loaders(
         train_dataset=train_dataset,

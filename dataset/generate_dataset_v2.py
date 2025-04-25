@@ -16,10 +16,12 @@ from src.auth.auth import S3Connector
 from src.utils.utils import remove_last_segment_rsplit
 from src.utils.cdse_utils import (create_cdse_query_url, download_bands)
 
+
 def load_config(config_path='config.yaml'):
     """Load configuration from YAML file"""
     with open(config_path, 'r') as file:
         return yaml.safe_load(file)
+
 
 def save_config_copy(config, config_path, dataset_dir):
     """Save a copy of the config file to the dataset directory"""
@@ -34,6 +36,7 @@ def save_config_copy(config, config_path, dataset_dir):
 
     logger.info(f"Saved configuration copy to {target_path}")
     return target_path
+
 
 def setup_environment(config):
     """Set up environment variables and directories for the dataset"""
@@ -82,6 +85,7 @@ def setup_environment(config):
         'bucket': bucket
     }
 
+
 def setup_logger(log_path, filename_prefix):
     """Setup logger with specified path and prefix"""
     log_filename = f"{log_path}/{filename_prefix}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
@@ -89,6 +93,7 @@ def setup_logger(log_path, filename_prefix):
     logger.add(log_filename, format="{time:YYYY-MM-DD HH:mm:ss} | {level} | {message}")
     logger.add(lambda msg: print(msg, end=""), colorize=True, format="{message}")
     return log_filename
+
 
 def query_sentinel_data(bbox, start_date, end_date, max_items, max_cloud_cover):
     """Query Sentinel data for the specified parameters"""
@@ -169,6 +174,7 @@ def query_sentinel_data(bbox, start_date, end_date, max_items, max_cloud_cover):
 
     return all_l1c_results, all_l2a_results
 
+
 def queries_curation(all_l1c_results, all_l2a_results):
     """Process and align L1C and L2A data to ensure they match"""
     # Create DataFrames
@@ -207,6 +213,7 @@ def queries_curation(all_l1c_results, all_l2a_results):
 
     return df_l1c, df_l2a
 
+
 def validate_data_alignment(df_l1c, df_l2a):
     """Validate that the data is properly aligned"""
     mismatches = 0
@@ -219,56 +226,6 @@ def validate_data_alignment(df_l1c, df_l2a):
         logger.info(f"All {len(df_l1c)} records are properly aligned")
     else:
         logger.warning(f"Found {mismatches} mismatches in data alignment")
-
-
-def download_sentinel_data(s3_client, bucket_name, df_l1c, df_l2a, bands, input_dir, output_dir, download_config):
-    """Download the Sentinel data bands"""
-    sample_size = download_config.get('sample_size', None)
-    resize = download_config.get('resize', False)
-    resize_target = download_config.get('resize_target', 1830)
-    l1c_resolution = download_config.get('l1c_resolution', None)
-    l2a_resolution = download_config.get('l2a_resolution', 60)
-    max_attempts = download_config.get('max_attempts', 10)
-    retry_delay = download_config.get('retry_delay', 10)
-
-    if sample_size:
-        df_l1c_sample = df_l1c[:sample_size]
-        df_l2a_sample = df_l2a[:sample_size]
-    else:
-        df_l1c_sample = df_l1c
-        df_l2a_sample = df_l2a
-
-    # Download L1C data
-    logger.info(f"Downloading {len(df_l1c_sample)} L1C samples...")
-    download_bands(
-        s3_client=s3_client,
-        bucket_name=bucket_name,
-        df=df_l1c_sample,
-        product_type="L1C",
-        bands=bands,
-        resize=resize,
-        resize_target=resize_target,
-        resolution=l1c_resolution,
-        output_dir=input_dir,
-        max_attempts=max_attempts,
-        retry_delay=retry_delay
-    )
-
-    # Download L2A data
-    logger.info(f"Downloading {len(df_l2a_sample)} L2A samples...")
-    download_bands(
-        s3_client=s3_client,
-        bucket_name=bucket_name,
-        df=df_l2a_sample,
-        product_type="L2A",
-        bands=bands,
-        resize=resize,
-        resize_target=resize_target,
-        resolution=l2a_resolution,
-        output_dir=output_dir,
-        max_attempts=max_attempts,
-        retry_delay=retry_delay
-    )
 
 
 def main():

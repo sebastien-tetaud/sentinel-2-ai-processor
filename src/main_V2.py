@@ -20,19 +20,6 @@ from utils.torch import count_parameters, load_model_weights, seed_everything
 from utils.utils import load_config
 
 
-def prepare_paths(path_dir):
-    
-    
-    df_input = pd.read_csv(f"{path_dir}/input.csv")
-    df_output = pd.read_csv(f"{path_dir}/target.csv")
-
-    df_input["path"] = df_input["Name"].apply(lambda x: os.path.join(path_dir, "input", os.path.basename(x).replace(".SAFE","")))
-    df_output["path"] = df_output["Name"].apply(lambda x: os.path.join(path_dir, "target", os.path.basename(x).replace(".SAFE","")))
-    
-    return df_input, df_output
-
-
-
 
 def create_result_dirs(base_dir="results"):
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
@@ -65,6 +52,18 @@ def save_config_to_log(config, log_dir, filename="config.yaml"):
     with open(config_path, 'w') as file:
         yaml.dump(config, file)
     logger.info(f"Saved config to {config_path}")
+
+
+def prepare_paths(path_dir):
+    
+    
+    df_input = pd.read_csv(f"{path_dir}/input.csv")
+    df_output = pd.read_csv(f"{path_dir}/target.csv")
+
+    df_input["path"] = df_input["Name"].apply(lambda x: os.path.join(path_dir, "input", os.path.basename(x).replace(".SAFE","")))
+    df_output["path"] = df_output["Name"].apply(lambda x: os.path.join(path_dir, "target", os.path.basename(x).replace(".SAFE","")))
+    
+    return df_input, df_output
 
 
 def prepare_data(config):
@@ -110,7 +109,8 @@ def build_model(config):
         encoder_name=config['MODEL']['encoder_name'],
         in_channel=len(config['DATASET']['bands']),
         out_channels=len(config['DATASET']['bands']),
-        activation=None)
+        activation=config['MODEL']['activation'],
+        )
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model = model.to(device)

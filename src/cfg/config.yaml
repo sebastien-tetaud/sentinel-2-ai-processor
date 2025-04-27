@@ -19,7 +19,7 @@ TRAINING:
     seed: 42
     resize : 1024
     learning_rate: 1e-3
-    scheduler: False
+    scheduler: True
     scheduler_type: ReduceLROnPlateau
     optim: Adam
     batch_size: 16

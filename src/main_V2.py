@@ -14,7 +14,7 @@ from tqdm import tqdm
 from data.dataset import Sentinel2TCIDataset, Sentinel2Dataset
 from data.loader import define_loaders
 from model_zoo.models import define_model
-from training.metrics import MultiSpectralMetrics
+from training.metrics import MultiSpectralMetrics, avg_metric_bands
 from utils.torch import count_parameters, load_model_weights, seed_everything
 from utils.utils import load_config
 from utils.wandb_logger import WandbLogger
@@ -249,6 +249,17 @@ def main():
     bands = config['DATASET']['bands']
     num_epochs = config['TRAINING']['n_epoch']
 
+    # Initialize best metrics at the beginning of training
+    if config['TRAINING']['save_strategy'] == "loss":
+        best_metric = float('inf')  # For loss, lower is better
+        logger.info("Model will be saved based on validation loss")
+    else:  # metric-based saving
+        metric_name = config['TRAINING']['save_metric']
+        save_mode = config['TRAINING']['save_mode']
+        best_metric = float('inf') if save_mode == "min" else float('-inf')
+        logger.info(f"Model will be saved based on average {metric_name} ({save_mode})")
+
+
     # setup enviornment
     setup_environment(config, log_path)
     # save training config fle
@@ -279,6 +290,7 @@ def main():
     }
 
     best_val_loss = float('inf')
+    save_model = False
     train_losses = []
     val_losses = []
 
@@ -298,17 +310,37 @@ def main():
                 dict_metrics[f'train_{metric}'][band].append(train_metrics[band][metric])
                 dict_metrics[f'val_{metric}'][band].append(val_metrics[band][metric])
 
+
         wandb_logger.log_train(epoch, train_loss, val_loss, current_lr, train_metrics, val_metrics)
 
-        if val_loss < best_val_loss:
-            best_val_loss = val_loss
+        save_model = False
+
+        if config['TRAINING']['save_strategy'] == "loss":
+            logger.warning("config.TRAINING.save_strategy")
+            if val_loss < best_metric:
+                best_metric = val_loss
+                save_model = True
+                save_message = f"Best model saved at epoch {epoch+1} with Val Loss: {best_metric:.6f}"
+        else:
+
+            metric_name = config['TRAINING']['save_metric']
+            save_mode = config['TRAINING']['save_mode']
+            avg_metric = avg_metric_bands(val_metrics, metric_name)
+
+            if (save_mode == "min" and avg_metric < best_metric) or \
+            (save_mode == "max" and avg_metric > best_metric):
+                best_metric = avg_metric
+                save_model = True
+                save_message = f"Best model saved at epoch {epoch+1} with avg {metric_name}: {best_metric:.6f}"
+
+        # Save model if criteria met
+        if save_model:
             model_path = os.path.join(checkpoint_path, "best_model.pth")
             torch.save(model.state_dict(), model_path)
             wandb_logger.save_model(model_path)
-            logger.info(f"Best model saved at epoch {epoch+1} with Val Loss: {best_val_loss:.6f}")
-
-        train_losses.append(train_loss)
-        val_losses.append(val_loss)
+            logger.info(save_message)
+            train_losses.append(train_loss)
+            val_losses.append(val_loss)
 
     model.load_state_dict(torch.load(os.path.join(checkpoint_path, "best_model.pth")))
     test_loss, test_metrics = test_model(model, test_loader, criterion, device, test_metrics_tracker)

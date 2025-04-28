@@ -153,3 +153,26 @@ class MultiSpectralMetrics:
                 metric.reset()
 
 
+def avg_metric_bands(val_metrics, metric_name):
+    """
+    Compute the average of a given metric_name across all bands.
+
+    Parameters:
+    -----------
+    val_metrics : dict
+        Dictionary with band names as keys, each containing a dictionary
+        with metrics including 'sam'.
+    metric_name: str
+        metric name: e.g: sam
+    Returns:
+    --------
+    float
+        The average SAM value across all bands.
+    """
+    total_sam = 0.0
+    band_count = len(val_metrics.keys())
+
+    for band, metrics in val_metrics.items():
+        total_sam += metrics[metric_name]
+
+    return total_sam / band_count

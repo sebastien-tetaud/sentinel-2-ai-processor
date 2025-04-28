@@ -8,7 +8,6 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import yaml
-import wandb
 from loguru import logger
 from tqdm import tqdm
 
@@ -18,6 +17,7 @@ from model_zoo.models import define_model
 from training.metrics import MultiSpectralMetrics
 from utils.torch import count_parameters, load_model_weights, seed_everything
 from utils.utils import load_config
+from utils.wandb_logger import WandbLogger
 
 
 
@@ -55,14 +55,14 @@ def save_config_to_log(config, log_dir, filename="config.yaml"):
 
 
 def prepare_paths(path_dir):
-    
-    
+
+
     df_input = pd.read_csv(f"{path_dir}/input.csv")
     df_output = pd.read_csv(f"{path_dir}/target.csv")
 
     df_input["path"] = df_input["Name"].apply(lambda x: os.path.join(path_dir, "input", os.path.basename(x).replace(".SAFE","")))
     df_output["path"] = df_output["Name"].apply(lambda x: os.path.join(path_dir, "target", os.path.basename(x).replace(".SAFE","")))
-    
+
     return df_input, df_output
 
 
@@ -71,7 +71,7 @@ def prepare_data(config):
     version = config['DATASET']['version']
     resize = config['TRAINING']['resize']
 
-        
+
     TRAIN_DIR = f"/mnt/disk/dataset/sentinel-ai-processor/{version}/train/"
     VAL_DIR = f"/mnt/disk/dataset/sentinel-ai-processor/{version}/val/"
     TEST_DIR = f"/mnt/disk/dataset/sentinel-ai-processor/{version}/test/"
@@ -79,7 +79,7 @@ def prepare_data(config):
     df_train_input, df_train_output =  prepare_paths(TRAIN_DIR)
     df_val_input, df_val_output =  prepare_paths(VAL_DIR)
     df_test_input, df_test_output =  prepare_paths(TEST_DIR)
-    
+
     train_dataset = Sentinel2Dataset(df_x=df_train_input, df_y=df_train_output, train=True, augmentation=False, img_size=resize)
     val_dataset = Sentinel2Dataset(df_x=df_val_input, df_y=df_val_output, train=True, augmentation=False, img_size=resize)
     test_dataset = Sentinel2Dataset(df_x=df_test_input, df_y=df_test_output, train=True, augmentation=False, img_size=resize)
@@ -126,9 +126,10 @@ def build_opt(model, config):
     )
     scheduler = config['TRAINING']['scheduler']
     if scheduler:
-        logger.info(f"schduler type: {config['TRAINING']['scheduler_type']}")
+        logger.info(f"scheduler type: {config['TRAINING']['scheduler_type']}")
+        logger.info(f"scheduler factor: {config['TRAINING']['factor']}")
         lr_scheduler = getattr(torch.optim.lr_scheduler, config['TRAINING']['scheduler_type'])
-        scheduler_class = lr_scheduler(optimizer, mode='min')
+        scheduler_class = lr_scheduler(optimizer, mode='min',factor=config['TRAINING']['factor'])
     else:
         scheduler_class = None
 
@@ -245,13 +246,15 @@ def main():
     log_path = paths['log_path']
     checkpoint_path = paths['checkpoint_path']
     metrics_path = paths['metrics_path']
+    bands = config['DATASET']['bands']
+    num_epochs = config['TRAINING']['n_epoch']
 
+    # setup enviornment
     setup_environment(config, log_path)
+    # save training config fle
     save_config_to_log(config, paths['result_dir'])
-
-    # Initialize Weights & Biases
-    wandb.init(project="sentinel2-ai-processor", config=config)
-    wandb.run.name = paths["timestamp"]
+    # set up weight and bias to track experiment
+    wandb_logger = WandbLogger(config=config, result_dir=paths)
 
     # prepare data
     train_loader, val_loader, test_loader = prepare_data(config)
@@ -259,10 +262,6 @@ def main():
     model, device = build_model(config)
     # define optimizer, scheduler and loss
     optimizer, criterion, scheduler, scheduler_class = build_opt(model, config)
-
-    bands = config['DATASET']['bands']
-    num_epochs = config['TRAINING']['n_epoch']
-
     # Define metrics tracker
     train_metrics_tracker = MultiSpectralMetrics(bands=bands, device=device)
     val_metrics_tracker = MultiSpectralMetrics(bands=bands, device=device)
@@ -299,32 +298,13 @@ def main():
                 dict_metrics[f'train_{metric}'][band].append(train_metrics[band][metric])
                 dict_metrics[f'val_{metric}'][band].append(val_metrics[band][metric])
 
-        # Log to wandb
-        # to improve later TODO
-        wandb.log({
-            "epoch": epoch + 1,
-            "train_loss": train_loss,
-            "val_loss": val_loss,
-            "learning_rate": current_lr,
-
-            # Grouped metrics by type
-            **{f"train/psnr_{b}": train_metrics[b]['psnr'] for b in bands},
-            **{f"train/rmse_{b}": train_metrics[b]['rmse'] for b in bands},
-            **{f"train/ssim_{b}": train_metrics[b]['ssim'] for b in bands},
-            **{f"train/sam_{b}": train_metrics[b]['sam'] for b in bands},
-
-            **{f"val/psnr_{b}": val_metrics[b]['psnr'] for b in bands},
-            **{f"val/rmse_{b}": val_metrics[b]['rmse'] for b in bands},
-            **{f"val/ssim_{b}": val_metrics[b]['ssim'] for b in bands},
-            **{f"val/sam_{b}": val_metrics[b]['sam'] for b in bands},
-        })
-
+        wandb_logger.log_train(epoch, train_loss, val_loss, current_lr, train_metrics, val_metrics)
 
         if val_loss < best_val_loss:
             best_val_loss = val_loss
             model_path = os.path.join(checkpoint_path, "best_model.pth")
             torch.save(model.state_dict(), model_path)
-            wandb.save(model_path)
+            wandb_logger.save_model(model_path)
             logger.info(f"Best model saved at epoch {epoch+1} with Val Loss: {best_val_loss:.6f}")
 
         train_losses.append(train_loss)
@@ -333,14 +313,7 @@ def main():
     model.load_state_dict(torch.load(os.path.join(checkpoint_path, "best_model.pth")))
     test_loss, test_metrics = test_model(model, test_loader, criterion, device, test_metrics_tracker)
 
-    # to improve later TODO
-    wandb.log({
-        "test_loss": test_loss,
-        **{f"test_psnr_{b}": test_metrics[b]['psnr'] for b in bands},
-        **{f"test_rmse_{b}": test_metrics[b]['rmse'] for b in bands},
-        **{f"test_ssim_{b}": test_metrics[b]['ssim'] for b in bands},
-        **{f"test_sam_{b}": test_metrics[b]['sam'] for b in bands},
-    })
+    wandb_logger.log_test(test_loss, test_metrics)
 
     # save all metrics
     save_all_metrics(dict_metrics, test_metrics, bands, num_epochs, metrics_path, train_losses, val_losses)

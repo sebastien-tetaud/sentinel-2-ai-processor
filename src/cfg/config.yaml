@@ -21,10 +21,12 @@ TRAINING:
     learning_rate: 1e-3
     scheduler: True
     scheduler_type: ReduceLROnPlateau
+    factor: 0.5
     optim: Adam
     batch_size: 16
     n_epoch: 100
     num_workers : 8
 
-
-
+WANDB:
+    track: True
+    project_name: sentinel2-ai-processor

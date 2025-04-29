@@ -10,7 +10,7 @@ ENDPOINTS:
 
 MODEL:
   model_name: "Unet"
-  encoder_name: "resnet34"
+  encoder_name: "timm-efficientnet-b2"
   in_channel: 3
   out_channels: 3
   activation: "sigmoid"
@@ -23,7 +23,7 @@ TRAINING:
     scheduler_type: ReduceLROnPlateau
     factor: 0.5
     optim: Adam
-    batch_size: 16
+    batch_size: 8
     n_epoch: 100
     num_workers : 8
     save_strategy: loss # loss/ metric

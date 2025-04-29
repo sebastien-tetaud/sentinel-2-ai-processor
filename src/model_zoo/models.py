@@ -6,7 +6,7 @@ def define_model(
     out_channels=3,
     in_channel=3,
     pretrained_weights=None,
-    activation=None
+    activation=None,
 
 ):
     # Get the model class dynamically based on name
@@ -21,7 +21,8 @@ def define_model(
             encoder_weights=pretrained_weights,
             in_channels=in_channel,
             classes=out_channels,
-            activation=activation
+            activation=activation,
+
         )
 
         return model

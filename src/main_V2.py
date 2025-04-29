@@ -104,13 +104,14 @@ def prepare_data(config):
 
 
 def build_model(config):
+
+
     model = define_model(
         name=config['MODEL']['model_name'],
         encoder_name=config['MODEL']['encoder_name'],
         in_channel=len(config['DATASET']['bands']),
         out_channels=len(config['DATASET']['bands']),
-        activation=config['MODEL']['activation'],
-        )
+        activation=config['MODEL']['activation'])
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model = model.to(device)

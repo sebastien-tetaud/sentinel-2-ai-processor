@@ -18,7 +18,7 @@ from training.metrics import MultiSpectralMetrics, avg_metric_bands
 from utils.torch import count_parameters, load_model_weights, seed_everything
 from utils.utils import load_config
 from utils.wandb_logger import WandbLogger
-
+from training.losses import WeightedMSELoss
 
 
 def create_result_dirs(base_dir="results"):
@@ -133,6 +133,7 @@ def build_opt(model, config):
     else:
         scheduler_class = None
 
+    # criterion = WeightedMSELoss()
     criterion = nn.MSELoss()
     return optimizer, criterion, scheduler, scheduler_class
 
@@ -148,8 +149,9 @@ def train_epoch(model, train_loader, optimizer, criterion, device, metrics_track
             x_data, y_data = x_data.to(device), y_data.to(device)
             optimizer.zero_grad()
             outputs = model(x_data)
-            valid_mask = y_data >= 0
-            loss = criterion(outputs[valid_mask], y_data[valid_mask])
+            # valid_mask = y_data >= 0
+            # loss = criterion(outputs[valid_mask], y_data[valid_mask])
+            loss = criterion(outputs, y_data)
             loss.backward()
             optimizer.step()
 
@@ -172,8 +174,9 @@ def validate(model, val_loader, criterion, device, metrics_tracker):
             for x_data, y_data in val_loader:
                 x_data, y_data = x_data.to(device), y_data.to(device)
                 outputs = model(x_data)
-                valid_mask = y_data >= 0
-                loss = criterion(outputs[valid_mask], y_data[valid_mask])
+                # valid_mask = y_data >= 0
+                # loss = criterion(outputs[valid_mask], y_data[valid_mask])
+                loss = criterion(outputs, y_data)
                 metrics_tracker.update(outputs, y_data)
                 val_loss += loss.item()
                 t.set_postfix(loss=loss.item())
@@ -193,8 +196,10 @@ def test_model(model, test_loader, criterion, device, metrics_tracker):
             for x_data, y_data in test_loader:
                 x_data, y_data = x_data.to(device), y_data.to(device)
                 outputs = model(x_data)
-                valid_mask = y_data >= 0
-                loss = criterion(outputs[valid_mask], y_data[valid_mask])
+                # valid_mask = y_data >= 0
+                # loss = criterion(outputs[valid_mask], y_data[valid_mask])
+                loss = criterion(outputs, y_data)
+                print(loss)
                 metrics_tracker.update(outputs, y_data)
                 test_loss += loss.item()
                 t.set_postfix(loss=loss.item())
@@ -316,7 +321,6 @@ def main():
         save_model = False
 
         if config['TRAINING']['save_strategy'] == "loss":
-            logger.warning("config.TRAINING.save_strategy")
             if val_loss < best_metric:
                 best_metric = val_loss
                 save_model = True
@@ -339,8 +343,9 @@ def main():
             torch.save(model.state_dict(), model_path)
             wandb_logger.save_model(model_path)
             logger.info(save_message)
-            train_losses.append(train_loss)
-            val_losses.append(val_loss)
+
+        train_losses.append(train_loss)
+        val_losses.append(val_loss)
 
     model.load_state_dict(torch.load(os.path.join(checkpoint_path, "best_model.pth")))
     test_loss, test_metrics = test_model(model, test_loader, criterion, device, test_metrics_tracker)

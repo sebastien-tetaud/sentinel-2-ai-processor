@@ -7,42 +7,42 @@ from data.transform import get_transforms
 import natsort
 import glob
 from PIL import Image
-import os 
+import os
 
 def normalize(band, lower_percent=2, upper_percent=98):
     """
     Apply percentile stretching to enhance contrast, only considering valid pixels.
-    
+
     Args:
         band: Input image band as numpy array
         lower_percent: Lower percentile boundary (default 2%)
         upper_percent: Upper percentile boundary (default 98%)
-        
+
     Returns:
         Normalized band with values in [0, 1]
     """
     # Create mask for valid pixels
     valid_mask = (band > 0)
-    
+
     # If no valid pixels, return zeros
     if not np.any(valid_mask):
         return np.zeros_like(band, dtype=np.float32)
-    
+
     # Extract valid pixels for percentile calculation
     valid_pixels = band[valid_mask]
     # Calculate percentiles based only on valid pixels
     lower = np.percentile(valid_pixels, lower_percent)
     upper = np.percentile(valid_pixels, upper_percent)
-    
+
     # Create a copy to avoid modifying the original
     result = band.copy().astype(np.float32)
-    
+
     # Apply stretching only to valid pixels
     result[valid_mask] = np.clip((band[valid_mask] - lower) / (upper - lower), 0, 1)
-    
+
     # Set invalid pixels to 0
     result[~valid_mask] = 0
-    
+
     return result
 
 
@@ -55,11 +55,11 @@ def read_images(product_paths):
         data = Image.open(path)
         data = np.array(data)
         data = normalize(data)
-        
+
         images.append(data)
-        
-    
-    
+
+
+
     images = np.dstack(images)
     return images
 

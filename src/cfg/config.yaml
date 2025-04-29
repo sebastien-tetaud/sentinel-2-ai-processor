@@ -26,9 +26,9 @@ TRAINING:
     batch_size: 16
     n_epoch: 100
     num_workers : 8
-    save_strategy: loss # or loss
-    save_metric: psnr
-    save_mode: max
+    save_strategy: loss # loss/ metric
+    save_metric: sam #ssim, psnr, sam, rmse
+    save_mode: min  #min, max
 
 WANDB:
     track: True

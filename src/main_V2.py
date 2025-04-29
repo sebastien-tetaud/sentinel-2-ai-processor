@@ -1,4 +1,5 @@
 import os
+import os
 from datetime import datetime
 
 import matplotlib.pyplot as plt
@@ -200,7 +201,7 @@ def test_model(model, test_loader, criterion, device, metrics_tracker):
                 # valid_mask = y_data >= 0
                 # loss = criterion(outputs[valid_mask], y_data[valid_mask])
                 loss = criterion(outputs, y_data)
-                print(loss)
+
                 metrics_tracker.update(outputs, y_data)
                 test_loss += loss.item()
                 t.set_postfix(loss=loss.item())

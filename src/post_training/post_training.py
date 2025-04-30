@@ -24,7 +24,7 @@ from data.loader import define_loaders
 from utils.utils import load_config
 from utils.torch import load_model_weights
 from model_zoo.models import define_model
-from utils.plot import plot_metrics
+from utils.plot import plot_metrics, plot_training_loss
 from data.dataset import Sentinel2Dataset, read_images
 from training.metrics import MultiSpectralMetrics
 
@@ -288,6 +288,15 @@ def post_traing_analysis(path):
                     log_scale=False, y_label=title, verbose=False, save=True,
                     save_path=exp_paths['metrics_path'], color_palette="plasma")
 
+    plot_training_loss(df=df_loss,
+                    title="Training and Validation Loss",
+                    y_label="Loss",
+                    log_scale=False,
+                    verbose=False,
+                    save=True,
+                    save_path=exp_paths['metrics_path'],
+                    color_palette="plasma"
+                    )
     # Load test data
     test_dir = f"/mnt/disk/dataset/sentinel-ai-processor/{version}/test/"
     df_test_input, df_test_output = prepare_paths(test_dir)

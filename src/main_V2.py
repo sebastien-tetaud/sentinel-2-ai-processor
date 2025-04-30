@@ -357,6 +357,9 @@ def main():
     # save all metrics
     save_all_metrics(dict_metrics, test_metrics, bands, num_epochs, metrics_path, train_losses, val_losses)
 
+    from post_training.post_training import post_traing_analysis
+
+    post_traing_analysis(path=paths['result_dir'])
 
 if __name__ == "__main__":
     main()

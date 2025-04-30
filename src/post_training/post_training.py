@@ -99,31 +99,32 @@ def prepare_data(config):
 
 def evaluate_and_plot(model, df_test_input, df_test_output, bands, resize, device, index, verbose, save, output_path):
     """
-    Evaluate the model performance and plot input, target, prediction, and absolute difference.
+    Evaluates and plots input, target, prediction, and absolute difference for a specific index.
 
-    Args:
+    Parameters:
         model: Trained model for evaluation.
-        df_test_input (DataFrame): DataFrame containing the input data paths.
-        df_test_output (DataFrame): DataFrame containing the output data paths.
-        bands (list): List of band names for evaluation.
-        resize (int): The resized dimension for images.
+        df_test_input: DataFrame containing the input data paths.
+        df_test_output: DataFrame containing the output data paths.
+        bands: List of band names (e.g., ['B02', 'B03', 'B04']) to evaluate.
+        resize: The resize dimension for images.
         device: The device (CPU or GPU) to run the model on.
-        index (int): Specific index to evaluate from the data.
-        verbose (bool): Whether to display the plots immediately.
-        save (bool): Whether to save the plots.
-        output_path (str): Directory path to save the output plots.
+        index: The specific index to evaluate from the data.
     """
     # Load input data (x_data) for the specified index
     x_paths = natsort.natsorted(glob.glob(os.path.join(df_test_input["path"][index], "*.png"), recursive=False))
     x_data = read_images(x_paths)
     x_data = cv2.resize(x_data, (resize, resize), interpolation=cv2.INTER_AREA)
-    x_data = torch.from_numpy(x_data).float().permute(2, 0, 1).unsqueeze(0)  # HWC to CHW
+    x_data = torch.from_numpy(x_data).float()
+    x_data = torch.permute(x_data, (2, 0, 1))  # HWC to CHW
+    x_data = torch.unsqueeze(x_data, 0)  # Add batch dimension
 
     # Load output data (y_data) for the specified index
     y_paths = natsort.natsorted(glob.glob(os.path.join(df_test_output["path"][index], "*.png"), recursive=False))
     y_data = read_images(y_paths)
     y_data = cv2.resize(y_data, (resize, resize), interpolation=cv2.INTER_AREA)
-    y_data = torch.from_numpy(y_data).float().permute(2, 0, 1).unsqueeze(0)  # HWC to CHW
+    y_data = torch.from_numpy(y_data).float()
+    y_data = torch.permute(y_data, (2, 0, 1))  # HWC to CHW
+    y_data = torch.unsqueeze(y_data, 0)  # Add batch dimension
 
     # Model evaluation
     model.eval()
@@ -136,26 +137,37 @@ def evaluate_and_plot(model, df_test_input, df_test_output, bands, resize, devic
     y_np = y_data.cpu().numpy()[0].transpose(1, 2, 0)
     pred_np = outputs.cpu().numpy()[0].transpose(1, 2, 0)
 
-    # Loop over bands and plot
+    # Loop over bands
     for idx, band in enumerate(bands):
         fig, axs = plt.subplots(1, 4, figsize=(20, 6))  # 1 row, 4 columns
 
-        vmin, vmax = 0, 1  # Data normalized between 0 and 1
+        vmin = 0
+        vmax = 1  # Data normalized between 0 and 1
 
-        # Input, Target, Prediction, Absolute Difference
-        plots = [
-            (x_np[:, :, idx], "Input -", band),
-            (y_np[:, :, idx], "Target -", band),
-            (pred_np[:, :, idx], "Prediction -", band),
-            (np.abs(y_np[:, :, idx] - pred_np[:, :, idx]), "Abs Difference -", band)
-        ]
+        # Input
+        im0 = axs[0].imshow(x_np[:, :, idx], cmap='plasma', vmin=vmin, vmax=vmax)
+        axs[0].set_title(f"Input - {band}", fontsize=14)
+        axs[0].axis('off')
+        plt.colorbar(im0, ax=axs[0], fraction=0.046, pad=0.04)
 
-        for ax, (data, title_prefix, band_name) in zip(axs, plots):
-            im = ax.imshow(data, cmap='plasma', vmin=vmin, vmax=vmax)
-            ax.set_title(f"{title_prefix} {band_name}", fontsize=14)
-            ax.axis('off')
-            plt.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+        # Target
+        im1 = axs[1].imshow(y_np[:, :, idx], cmap='plasma', vmin=vmin, vmax=vmax)
+        axs[1].set_title(f"Target - {band}", fontsize=14)
+        axs[1].axis('off')
+        plt.colorbar(im1, ax=axs[1], fraction=0.046, pad=0.04)
 
+        # Prediction
+        im2 = axs[2].imshow(pred_np[:, :, idx], cmap='plasma', vmin=vmin, vmax=vmax)
+        axs[2].set_title(f"Prediction - {band}", fontsize=14)
+        axs[2].axis('off')
+        plt.colorbar(im2, ax=axs[2], fraction=0.046, pad=0.04)
+
+        # Absolute Difference (Target - Prediction)
+        diff_target_pred = np.abs(y_np[:, :, idx] - pred_np[:, :, idx])
+        im3 = axs[3].imshow(diff_target_pred, cmap='plasma', vmin=0, vmax=diff_target_pred.max())
+        axs[3].set_title(f"Abs Difference - {band}", fontsize=14)
+        axs[3].axis('off')
+        plt.colorbar(im3, ax=axs[3], fraction=0.046, pad=0.04)
         plt.tight_layout()
 
         if verbose:
@@ -163,8 +175,8 @@ def evaluate_and_plot(model, df_test_input, df_test_output, bands, resize, devic
 
         if save:
             _, head = os.path.split(df_test_input["path"][index])
-            plt.savefig(f"{output_path}/{head}_{band}.svg")
-
+            filename = f"{output_path}/{head}_{band}.svg"
+            fig.savefig(filename)
         plt.close()
 
 
@@ -301,7 +313,6 @@ def post_traing_analysis(path):
     test_dir = f"/mnt/disk/dataset/sentinel-ai-processor/{version}/test/"
     df_test_input, df_test_output = prepare_paths(test_dir)
 
-    # Uncomment to calculate valid pixel percentages
     df_test_output = calculate_valid_pixel_percentages(df=df_test_output, column_name="path", show_progress=True)
 
     test_dataset = Sentinel2Dataset(df_x=df_test_input, df_y=df_test_output, train=True, augmentation=False, img_size=resize)

@@ -26,7 +26,7 @@ TRAINING:
     batch_size: 8
     n_epoch: 100
     num_workers : 8
-    save_strategy: loss # loss/ metric
+    save_strategy: metric # loss/ metric
     save_metric: sam #ssim, psnr, sam, rmse
     save_mode: min  #min, max
 

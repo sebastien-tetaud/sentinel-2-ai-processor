@@ -388,7 +388,7 @@ def post_traing_analysis(path):
         ax = axs[i]
         scatter = ax.scatter(data=df_test_output, x='valid_pixel', y=f'sam_{band}',
                             c=df_test_output['valid_pixel'], cmap=cmap)
-        ax.set_title(f"{band}", fontsize=14)
+        ax.set_title(f"{band} - Test Data", fontsize=14)
         ax.set_xlabel("Valid Pixel (%)", fontsize=12)
         ax.set_ylabel(f"SAM {band}", fontsize=12)
         ax.set_ylim(0, global_ymax)

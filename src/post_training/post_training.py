@@ -469,7 +469,7 @@ def post_traing_analysis(path):
     logger.info(f"Top 10 indices with minimum SAM for B02: {top_10_min_sam_idx}")
 
     # Evaluate and plot for best SAM predictions
-    output_best_sam_path = f"{exp_paths['result_dir']}/outputs_best_sam"
+    output_best_sam_path = f"{exp_paths['metrics_path']}/outputs_best_sam"
     os.makedirs(output_best_sam_path, exist_ok=True)
 
     for idx in top_10_min_sam_idx:
@@ -477,7 +477,7 @@ def post_traing_analysis(path):
                         device=device, index=idx, verbose=False, save=True, output_path=output_best_sam_path)
 
     # Evaluate and plot for best SSIM predictions
-    output_best_ssim_path = f"{exp_paths['result_dir']}/outputs_best_ssim"
+    output_best_ssim_path = f"{exp_paths['metrics_path']}/outputs_best_ssim"
     os.makedirs(output_best_ssim_path, exist_ok=True)
 
     for idx in top_10_max_ssim_idx:

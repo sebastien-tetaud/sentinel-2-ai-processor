@@ -113,7 +113,7 @@ def plot_training_loss(
     verbose=False,
     save=False,
     save_path="./",
-    color_palette="plasma",
+    color_palette="RdBu_r",
 ):
     """
     Plot training and validation loss over epochs.

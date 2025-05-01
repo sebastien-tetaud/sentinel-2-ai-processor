@@ -145,26 +145,26 @@ def evaluate_and_plot(model, df_test_input, df_test_output, bands, resize, devic
         vmax = 1  # Data normalized between 0 and 1
 
         # Input
-        im0 = axs[0].imshow(x_np[:, :, idx], cmap='plasma', vmin=vmin, vmax=vmax)
+        im0 = axs[0].imshow(x_np[:, :, idx], cmap='RdBu_r', vmin=vmin, vmax=vmax)
         axs[0].set_title(f"Input - {band}", fontsize=14)
         axs[0].axis('off')
         plt.colorbar(im0, ax=axs[0], fraction=0.046, pad=0.04)
 
         # Target
-        im1 = axs[1].imshow(y_np[:, :, idx], cmap='plasma', vmin=vmin, vmax=vmax)
+        im1 = axs[1].imshow(y_np[:, :, idx], cmap='RdBu_r', vmin=vmin, vmax=vmax)
         axs[1].set_title(f"Target - {band}", fontsize=14)
         axs[1].axis('off')
         plt.colorbar(im1, ax=axs[1], fraction=0.046, pad=0.04)
 
         # Prediction
-        im2 = axs[2].imshow(pred_np[:, :, idx], cmap='plasma', vmin=vmin, vmax=vmax)
+        im2 = axs[2].imshow(pred_np[:, :, idx], cmap='RdBu_r', vmin=vmin, vmax=vmax)
         axs[2].set_title(f"Prediction - {band}", fontsize=14)
         axs[2].axis('off')
         plt.colorbar(im2, ax=axs[2], fraction=0.046, pad=0.04)
 
         # Absolute Difference (Target - Prediction)
         diff_target_pred = np.abs(y_np[:, :, idx] - pred_np[:, :, idx])
-        im3 = axs[3].imshow(diff_target_pred, cmap='plasma', vmin=0, vmax=diff_target_pred.max())
+        im3 = axs[3].imshow(diff_target_pred, cmap='RdBu_r', vmin=0, vmax=diff_target_pred.max())
         axs[3].set_title(f"Abs Difference - {band}", fontsize=14)
         axs[3].axis('off')
         plt.colorbar(im3, ax=axs[3], fraction=0.046, pad=0.04)
@@ -485,4 +485,4 @@ def post_traing_analysis(path):
                         device=device, index=idx, verbose=False, save=True, output_path=output_best_ssim_path)
 
 
-# post_traing_analysis(path="/home/ubuntu/project/sentinel-2-ai-processor/src/results/2025-04-29_16-34-20")
+post_traing_analysis(path="/home/ubuntu/project/sentinel-2-ai-processor/src/results/2025-04-29_16-34-20")

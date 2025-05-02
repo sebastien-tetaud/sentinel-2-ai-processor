@@ -10,9 +10,17 @@ from PIL import Image
 import os
 
 
-def normalize(band):
+def normalize(band, lower_percent=2, upper_percent=98):
     """
-    Apply min-max normalization, only considering valid pixels.
+    Apply percentile stretching to enhance contrast, only considering valid pixels.
+
+    Args:
+        band: Input image band as numpy array
+        lower_percent: Lower percentile boundary (default 2%)
+        upper_percent: Upper percentile boundary (default 98%)
+
+    Returns:
+        Normalized band with values in [0, 1]
     """
     # Create mask for valid pixels
     valid_mask = (band > 0)
@@ -21,62 +29,22 @@ def normalize(band):
     if not np.any(valid_mask):
         return np.zeros_like(band, dtype=np.float32)
 
-    # Extract valid pixels for min-max calculation
+    # Extract valid pixels for percentile calculation
     valid_pixels = band[valid_mask]
-    min_val = np.min(valid_pixels)
-    max_val = np.max(valid_pixels)
-
+    # Calculate percentiles based only on valid pixels
+    lower = np.percentile(valid_pixels, lower_percent)
+    upper = np.percentile(valid_pixels, upper_percent)
 
     # Create a copy to avoid modifying the original
     result = band.copy().astype(np.float32)
 
-    # Avoid division by zero
-    if min_val == max_val:
-        result[valid_mask] = 0
-    else:
-        # Apply min-max normalization only to valid pixels
-        result[valid_mask] = (band[valid_mask] - min_val) / (max_val - min_val)
+    # Apply stretching only to valid pixels
+    result[valid_mask] = np.clip((band[valid_mask] - lower) / (upper - lower), 0, 1)
 
     # Set invalid pixels to 0
     result[~valid_mask] = 0
 
     return result
-
-# def normalize(band, lower_percent=2, upper_percent=98):
-#     """
-#     Apply percentile stretching to enhance contrast, only considering valid pixels.
-
-#     Args:
-#         band: Input image band as numpy array
-#         lower_percent: Lower percentile boundary (default 2%)
-#         upper_percent: Upper percentile boundary (default 98%)
-
-#     Returns:
-#         Normalized band with values in [0, 1]
-#     """
-#     # Create mask for valid pixels
-#     valid_mask = (band > 0)
-
-#     # If no valid pixels, return zeros
-#     if not np.any(valid_mask):
-#         return np.zeros_like(band, dtype=np.float32)
-
-#     # Extract valid pixels for percentile calculation
-#     valid_pixels = band[valid_mask]
-#     # Calculate percentiles based only on valid pixels
-#     lower = np.percentile(valid_pixels, lower_percent)
-#     upper = np.percentile(valid_pixels, upper_percent)
-
-#     # Create a copy to avoid modifying the original
-#     result = band.copy().astype(np.float32)
-
-#     # Apply stretching only to valid pixels
-#     result[valid_mask] = np.clip((band[valid_mask] - lower) / (upper - lower), 0, 1)
-
-#     # Set invalid pixels to 0
-#     result[~valid_mask] = 0
-
-#     return result
 
 
 def read_images(product_paths):

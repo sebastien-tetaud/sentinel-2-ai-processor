@@ -80,6 +80,10 @@ def prepare_data(config):
     df_train_input, df_train_output =  prepare_paths(TRAIN_DIR)
     df_val_input, df_val_output =  prepare_paths(VAL_DIR)
     df_test_input, df_test_output =  prepare_paths(TEST_DIR)
+    
+    logger.info(f"Number of training samples: {len(df_train_input)}")
+    logger.info(f"Number of validation samples: {len(df_val_input)}")
+    logger.info(f"Number of test samples: {len(df_test_input)}")
 
     train_dataset = Sentinel2Dataset(df_x=df_train_input, df_y=df_train_output, train=True, augmentation=False, img_size=resize)
     val_dataset = Sentinel2Dataset(df_x=df_val_input, df_y=df_val_output, train=True, augmentation=False, img_size=resize)

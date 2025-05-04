@@ -123,7 +123,7 @@ def evaluate_and_plot(model, df_test_input, df_test_output, bands,cmap,  resize,
     y_mask = cv2.resize(y_mask.astype(np.uint8), (resize, resize), interpolation=cv2.INTER_NEAREST).astype(bool)
 
     # Combine masks: valid only where both input and target are valid
-    valid_mask = x_mask & y_mask  # Shape: H x W x C
+    valid_mask = x_mask
 
     # Prepare tensors for inference
     x_tensor = torch.from_numpy(x_data).float().permute(2, 0, 1).unsqueeze(0).to(device)  # [1, C, H, W]
@@ -139,7 +139,7 @@ def evaluate_and_plot(model, df_test_input, df_test_output, bands,cmap,  resize,
     pred_np = pred_tensor.cpu().numpy()[0].transpose(1, 2, 0) # [H, W, C]
 
     # Apply mask: set invalid pixels to 0
-    x_np[~valid_mask] = 0.0
+    # x_np[~valid_mask] = 0.0
     y_np[~valid_mask] = 0.0
     pred_np[~valid_mask] = 0.0
 
@@ -152,19 +152,19 @@ def evaluate_and_plot(model, df_test_input, df_test_output, bands,cmap,  resize,
 
         # Input
         im0 = axs[0].imshow(x_np[:, :, idx], cmap=cmap, vmin=vmin, vmax=vmax)
-        axs[0].set_title(f"Input - {band}", fontsize=14)
+        axs[0].set_title(f"L1C Input - {band}", fontsize=14)
         axs[0].axis('off')
         plt.colorbar(im0, ax=axs[0], fraction=0.046, pad=0.04)
 
         # Target
         im1 = axs[1].imshow(y_np[:, :, idx], cmap=cmap, vmin=vmin, vmax=vmax)
-        axs[1].set_title(f"Target - {band}", fontsize=14)
+        axs[1].set_title(f"L2A Target - {band}", fontsize=14)
         axs[1].axis('off')
         plt.colorbar(im1, ax=axs[1], fraction=0.046, pad=0.04)
 
         # Prediction
         im2 = axs[2].imshow(pred_np[:, :, idx], cmap=cmap, vmin=vmin, vmax=vmax)
-        axs[2].set_title(f"Prediction - {band}", fontsize=14)
+        axs[2].set_title(f" L2A Prediction - {band}", fontsize=14)
         axs[2].axis('off')
         plt.colorbar(im2, ax=axs[2], fraction=0.046, pad=0.04)
 
@@ -355,7 +355,7 @@ def post_traing_analysis(path):
     with torch.no_grad():
         with tqdm(total=len(test_loader.dataset), ncols=100, colour='#cc99ff') as t:
             for x_data, y_data, valid_mask in test_loader:
-                x_data, y_data = x_data.to(device), y_data.to(device)
+                x_data, y_data, valid_mask = x_data.to(device), y_data.to(device), valid_mask.to(device)
                 outputs = model(x_data)
                 test_metrics_tracker.reset()
                 test_metrics_tracker.update(outputs, y_data, valid_mask)
@@ -459,7 +459,7 @@ def post_traing_analysis(path):
     os.makedirs(outputs_worst_sam_path, exist_ok=True)
 
     for idx in top_10_max_sam_idx:
-        evaluate_and_plot(model, df_test_input, df_test_output, bands=bands,cmap="inferno", resize=resize,
+        evaluate_and_plot(model, df_test_input, df_test_output, bands=bands,cmap="Grays_r", resize=resize,
                         device=device, index=idx, verbose=False, save=True, output_path=outputs_worst_sam_path)
 
     # Evaluate and plot for worst SSIM predictions
@@ -467,7 +467,7 @@ def post_traing_analysis(path):
     os.makedirs(outputs_worst_ssim_path, exist_ok=True)
 
     for idx in top_10_min_ssim_idx:
-        evaluate_and_plot(model, df_test_input, df_test_output, bands=bands,cmap="inferno", resize=resize,
+        evaluate_and_plot(model, df_test_input, df_test_output, bands=bands,cmap="Grays_r", resize=resize,
                         device=device, index=idx, verbose=False, save=True, output_path=outputs_worst_ssim_path)
 
     # Top best predictions for SAM and SSIM
@@ -482,7 +482,7 @@ def post_traing_analysis(path):
     os.makedirs(output_best_sam_path, exist_ok=True)
 
     for idx in top_10_min_sam_idx:
-        evaluate_and_plot(model, df_test_input, df_test_output, bands=bands,cmap="inferno", resize=resize,
+        evaluate_and_plot(model, df_test_input, df_test_output, bands=bands,cmap="Grays_r", resize=resize,
                         device=device, index=idx, verbose=False, save=True, output_path=output_best_sam_path)
 
     # Evaluate and plot for best SSIM predictions
@@ -490,11 +490,8 @@ def post_traing_analysis(path):
     os.makedirs(output_best_ssim_path, exist_ok=True)
 
     for idx in top_10_max_ssim_idx:
-        evaluate_and_plot(model, df_test_input, df_test_output, bands=bands,cmap="inferno", resize=resize,
+        evaluate_and_plot(model, df_test_input, df_test_output, bands=bands,cmap="Grays_r", resize=resize,
                         device=device, index=idx, verbose=False, save=True, output_path=output_best_ssim_path)
 
 
-# post_traing_analysis(path="/home/ubuntu/project/sentinel-2-ai-processor/src/results/2025-04-26_22-00-04")
-# post_traing_analysis(path="/home/ubuntu/project/sentinel-2-ai-processor/src/results/2025-04-27_11-19-42")
-# post_traing_analysis(path="/home/ubuntu/project/sentinel-2-ai-processor/src/results/2025-04-28_15-42-52")
-# post_traing_analysis(path="/home/ubuntu/project/sentinel-2-ai-processor/src/results/2025-04-29_16-34-20")
+# post_traing_analysis(path="/home/ubuntu/project/sentinel-2-ai-processor/src/results/2025-05-03_15-47-10")

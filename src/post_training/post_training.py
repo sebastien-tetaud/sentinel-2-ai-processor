@@ -459,7 +459,7 @@ def post_traing_analysis(path):
     os.makedirs(outputs_worst_sam_path, exist_ok=True)
 
     for idx in top_10_max_sam_idx:
-        evaluate_and_plot(model, df_test_input, df_test_output, bands=bands,cmap="Grays_r", resize=resize,
+        evaluate_and_plot(model, df_test_input, df_test_output, bands=bands,cmap="inferno", resize=resize,
                         device=device, index=idx, verbose=False, save=True, output_path=outputs_worst_sam_path)
 
     # Evaluate and plot for worst SSIM predictions
@@ -467,7 +467,7 @@ def post_traing_analysis(path):
     os.makedirs(outputs_worst_ssim_path, exist_ok=True)
 
     for idx in top_10_min_ssim_idx:
-        evaluate_and_plot(model, df_test_input, df_test_output, bands=bands,cmap="Grays_r", resize=resize,
+        evaluate_and_plot(model, df_test_input, df_test_output, bands=bands,cmap="inferno", resize=resize,
                         device=device, index=idx, verbose=False, save=True, output_path=outputs_worst_ssim_path)
 
     # Top best predictions for SAM and SSIM
@@ -482,7 +482,7 @@ def post_traing_analysis(path):
     os.makedirs(output_best_sam_path, exist_ok=True)
 
     for idx in top_10_min_sam_idx:
-        evaluate_and_plot(model, df_test_input, df_test_output, bands=bands,cmap="Grays_r", resize=resize,
+        evaluate_and_plot(model, df_test_input, df_test_output, bands=bands,cmap="inferno", resize=resize,
                         device=device, index=idx, verbose=False, save=True, output_path=output_best_sam_path)
 
     # Evaluate and plot for best SSIM predictions
@@ -490,8 +490,8 @@ def post_traing_analysis(path):
     os.makedirs(output_best_ssim_path, exist_ok=True)
 
     for idx in top_10_max_ssim_idx:
-        evaluate_and_plot(model, df_test_input, df_test_output, bands=bands,cmap="Grays_r", resize=resize,
+        evaluate_and_plot(model, df_test_input, df_test_output, bands=bands,cmap="inferno", resize=resize,
                         device=device, index=idx, verbose=False, save=True, output_path=output_best_ssim_path)
 
 
-# post_traing_analysis(path="/home/ubuntu/project/sentinel-2-ai-processor/src/results/2025-05-03_15-47-10")
+post_traing_analysis(path="/home/ubuntu/project/sentinel-2-ai-processor/src/results/2025-05-03_15-47-10")

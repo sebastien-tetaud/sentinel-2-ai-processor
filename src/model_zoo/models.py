@@ -24,7 +24,7 @@ def define_model(
             activation=activation,
 
         )
-
+        
         return model
 
 

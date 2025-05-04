@@ -9,8 +9,8 @@ ENDPOINTS:
   bucket_name: "eodata"
 
 MODEL:
-  model_name: "Segformer"
-  encoder_name: "tu-davit_base"
+  model_name: "Unet"
+  encoder_name: "timm-efficientnet-b3"
   in_channel: 3
   out_channels: 3
   activation: "sigmoid"
@@ -23,7 +23,7 @@ TRAINING:
     scheduler_type: ReduceLROnPlateau
     factor: 0.5
     optim: Adam
-    batch_size: 6
+    batch_size: 8
     n_epoch: 100
     num_workers : 8
     save_strategy: metric # loss/ metric

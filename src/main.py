@@ -73,14 +73,14 @@ def prepare_data(config):
     resize = config['TRAINING']['resize']
 
 
-    TRAIN_DIR = f"/mnt/disk/dataset/sentinel-ai-processor/{version}/train/"
-    VAL_DIR = f"/mnt/disk/dataset/sentinel-ai-processor/{version}/val/"
-    TEST_DIR = f"/mnt/disk/dataset/sentinel-ai-processor/{version}/test/"
+    TRAIN_DIR = f"{base_dir}/{version}/train/"
+    VAL_DIR = f"{base_dir}/{version}/val/"
+    TEST_DIR = f"{base_dir}/{version}/test/"
 
     df_train_input, df_train_output =  prepare_paths(TRAIN_DIR)
     df_val_input, df_val_output =  prepare_paths(VAL_DIR)
     df_test_input, df_test_output =  prepare_paths(TEST_DIR)
-    
+
     logger.info(f"Number of training samples: {len(df_train_input)}")
     logger.info(f"Number of validation samples: {len(df_val_input)}")
     logger.info(f"Number of test samples: {len(df_test_input)}")
@@ -114,6 +114,7 @@ def build_model(config):
     model = define_model(
         name=config['MODEL']['model_name'],
         encoder_name=config['MODEL']['encoder_name'],
+        encoder_weights = config['MODEL']['encoder_weights'],
         in_channel=len(config['DATASET']['bands']),
         out_channels=len(config['DATASET']['bands']),
         activation=config['MODEL']['activation'])

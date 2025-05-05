@@ -10,7 +10,8 @@ ENDPOINTS:
 
 MODEL:
   model_name: "Unet"
-  encoder_name: "timm-efficientnet-b3"
+  encoder_name: "timm-efficientnet-b2"
+  encoder_weights: "imagenet"
   in_channel: 3
   out_channels: 3
   activation: "sigmoid"

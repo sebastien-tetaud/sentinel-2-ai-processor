@@ -34,7 +34,7 @@ def define_loaders(
         train_dataset,
         batch_size=batch_size,
         shuffle=False,
-        drop_last=True,
+        drop_last=False,
         num_workers=num_workers,
     )
     if train:

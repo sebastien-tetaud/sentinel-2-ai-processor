@@ -1,6 +1,7 @@
 import yaml
 from urllib.parse import urlparse
-
+import pandas as pd
+import os
 
 def load_config(config_path="cfg/config.yaml"):
     with open(config_path, "r") as file:
@@ -36,3 +37,26 @@ def extract_s3_path_from_url(url):
     object_path = parsed_url.path.lstrip('/')
 
     return object_path
+
+
+def prepare_paths(path_dir):
+    """
+    Prepare paths for input and output datasets from CSV files.
+
+    Args:
+        path_dir (str): Directory containing input and target CSV files.
+
+    Returns:
+        DataFrame, DataFrame: Two DataFrames for input and output datasets.
+    """
+    df_input = pd.read_csv(f"{path_dir}/input.csv")
+    df_output = pd.read_csv(f"{path_dir}/target.csv")
+
+    df_input["path"] = df_input["Name"].apply(
+        lambda x: os.path.join(path_dir, "input", os.path.basename(x).replace(".SAFE", ""))
+    )
+    df_output["path"] = df_output["Name"].apply(
+        lambda x: os.path.join(path_dir, "target", os.path.basename(x).replace(".SAFE", ""))
+    )
+
+    return df_input, df_output

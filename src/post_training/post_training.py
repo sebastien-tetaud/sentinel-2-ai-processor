@@ -21,7 +21,7 @@ project_root = os.path.dirname(src_dir)
 sys.path.append(project_root)
 
 from data.loader import define_loaders
-from utils.utils import load_config
+from utils.utils import load_config, prepare_paths
 from utils.torch import load_model_weights
 from model_zoo.models import define_model
 from utils.plot import plot_metrics, plot_training_loss
@@ -45,27 +45,27 @@ def generate_exp_paths(exp_path):
     }
 
 
-def prepare_paths(path_dir):
-    """
-    Prepare paths for input and output datasets from CSV files.
+# def prepare_paths(path_dir):
+#     """
+#     Prepare paths for input and output datasets from CSV files.
 
-    Args:
-        path_dir (str): Directory containing input and target CSV files.
+#     Args:
+#         path_dir (str): Directory containing input and target CSV files.
 
-    Returns:
-        DataFrame, DataFrame: Two DataFrames for input and output datasets.
-    """
-    df_input = pd.read_csv(f"{path_dir}/input.csv")
-    df_output = pd.read_csv(f"{path_dir}/target.csv")
+#     Returns:
+#         DataFrame, DataFrame: Two DataFrames for input and output datasets.
+#     """
+#     df_input = pd.read_csv(f"{path_dir}/input.csv")
+#     df_output = pd.read_csv(f"{path_dir}/target.csv")
 
-    df_input["path"] = df_input["Name"].apply(
-        lambda x: os.path.join(path_dir, "input", os.path.basename(x).replace(".SAFE", ""))
-    )
-    df_output["path"] = df_output["Name"].apply(
-        lambda x: os.path.join(path_dir, "target", os.path.basename(x).replace(".SAFE", ""))
-    )
+#     df_input["path"] = df_input["Name"].apply(
+#         lambda x: os.path.join(path_dir, "input", os.path.basename(x).replace(".SAFE", ""))
+#     )
+#     df_output["path"] = df_output["Name"].apply(
+#         lambda x: os.path.join(path_dir, "target", os.path.basename(x).replace(".SAFE", ""))
+#     )
 
-    return df_input, df_output
+#     return df_input, df_output
 
 
 def prepare_data(config):
@@ -186,7 +186,6 @@ def evaluate_and_plot(model, df_test_input, df_test_output, bands,cmap,  resize,
             fig.savefig(filename)
 
         plt.close()
-
 
 
 def calculate_valid_pixel_percentages(df, column_name="path", show_progress=True):
@@ -459,7 +458,7 @@ def post_traing_analysis(path):
     os.makedirs(outputs_worst_sam_path, exist_ok=True)
 
     for idx in top_10_max_sam_idx:
-        evaluate_and_plot(model, df_test_input, df_test_output, bands=bands,cmap="inferno", resize=resize,
+        evaluate_and_plot(model, df_test_input, df_test_output, bands=bands,cmap="Greys_r", resize=resize,
                         device=device, index=idx, verbose=False, save=True, output_path=outputs_worst_sam_path)
 
     # Evaluate and plot for worst SSIM predictions
@@ -467,7 +466,7 @@ def post_traing_analysis(path):
     os.makedirs(outputs_worst_ssim_path, exist_ok=True)
 
     for idx in top_10_min_ssim_idx:
-        evaluate_and_plot(model, df_test_input, df_test_output, bands=bands,cmap="inferno", resize=resize,
+        evaluate_and_plot(model, df_test_input, df_test_output, bands=bands,cmap="Greys_r", resize=resize,
                         device=device, index=idx, verbose=False, save=True, output_path=outputs_worst_ssim_path)
 
     # Top best predictions for SAM and SSIM
@@ -482,7 +481,7 @@ def post_traing_analysis(path):
     os.makedirs(output_best_sam_path, exist_ok=True)
 
     for idx in top_10_min_sam_idx:
-        evaluate_and_plot(model, df_test_input, df_test_output, bands=bands,cmap="inferno", resize=resize,
+        evaluate_and_plot(model, df_test_input, df_test_output, bands=bands,cmap="Greys_r", resize=resize,
                         device=device, index=idx, verbose=False, save=True, output_path=output_best_sam_path)
 
     # Evaluate and plot for best SSIM predictions
@@ -490,8 +489,8 @@ def post_traing_analysis(path):
     os.makedirs(output_best_ssim_path, exist_ok=True)
 
     for idx in top_10_max_ssim_idx:
-        evaluate_and_plot(model, df_test_input, df_test_output, bands=bands,cmap="inferno", resize=resize,
+        evaluate_and_plot(model, df_test_input, df_test_output, bands=bands,cmap="Greys_r", resize=resize,
                         device=device, index=idx, verbose=False, save=True, output_path=output_best_ssim_path)
 
 
-# post_traing_analysis(path="/home/ubuntu/project/sentinel-2-ai-processor/src/results/2025-05-03_15-47-10")
+# post_traing_analysis(path="/home/ubuntu/project/sentinel-2-ai-processor/src/results/2025-05-04_10-32-49")

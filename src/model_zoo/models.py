@@ -5,7 +5,7 @@ def define_model(
     encoder_name,
     out_channels=3,
     in_channel=3,
-    pretrained_weights=None,
+    encoder_weights=None,
     activation=None,
 
 ):
@@ -18,13 +18,13 @@ def define_model(
         # Create the model
         model = ModelClass(
             encoder_name=encoder_name,
-            encoder_weights=pretrained_weights,
+            encoder_weights=encoder_weights,
             in_channels=in_channel,
             classes=out_channels,
             activation=activation,
 
         )
-        
+
         return model
 
 

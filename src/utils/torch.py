@@ -105,3 +105,4 @@ def load_model_weights(model, filename, verbose=1, cp_folder="", strict=True):
         )
 
     return model
+

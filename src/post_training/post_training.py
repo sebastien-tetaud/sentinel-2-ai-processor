@@ -25,7 +25,7 @@ from utils.utils import load_config, prepare_paths
 from utils.torch import load_model_weights
 from model_zoo.models import define_model
 from utils.plot import plot_metrics, plot_training_loss
-from data.dataset import Sentinel2Dataset, read_images
+from data.dataset import Sentinel2Dataset, read_images, normalize
 from training.metrics import MultiSpectralMetrics
 
 def generate_exp_paths(exp_path):
@@ -45,27 +45,27 @@ def generate_exp_paths(exp_path):
     }
 
 
-# def prepare_paths(path_dir):
-#     """
-#     Prepare paths for input and output datasets from CSV files.
+def prepare_paths(path_dir):
+    """
+    Prepare paths for input and output datasets from CSV files.
 
-#     Args:
-#         path_dir (str): Directory containing input and target CSV files.
+    Args:
+        path_dir (str): Directory containing input and target CSV files.
 
-#     Returns:
-#         DataFrame, DataFrame: Two DataFrames for input and output datasets.
-#     """
-#     df_input = pd.read_csv(f"{path_dir}/input.csv")
-#     df_output = pd.read_csv(f"{path_dir}/target.csv")
+    Returns:
+        DataFrame, DataFrame: Two DataFrames for input and output datasets.
+    """
+    df_input = pd.read_csv(f"{path_dir}/input.csv")
+    df_output = pd.read_csv(f"{path_dir}/target.csv")
 
-#     df_input["path"] = df_input["Name"].apply(
-#         lambda x: os.path.join(path_dir, "input", os.path.basename(x).replace(".SAFE", ""))
-#     )
-#     df_output["path"] = df_output["Name"].apply(
-#         lambda x: os.path.join(path_dir, "target", os.path.basename(x).replace(".SAFE", ""))
-#     )
+    df_input["path"] = df_input["Name"].apply(
+        lambda x: os.path.join(path_dir, "input", os.path.basename(x).replace(".SAFE", ""))
+    )
+    df_output["path"] = df_output["Name"].apply(
+        lambda x: os.path.join(path_dir, "target", os.path.basename(x).replace(".SAFE", ""))
+    )
 
-#     return df_input, df_output
+    return df_input, df_output
 
 
 def prepare_data(config):
@@ -112,13 +112,15 @@ def evaluate_and_plot(model, df_test_input, df_test_output, bands,cmap,  resize,
     """
     # Load input data and mask
     x_paths = natsort.natsorted(glob.glob(os.path.join(df_test_input["path"][index], "*.png"), recursive=False))
-    x_data, x_mask = read_images(x_paths)
+    x_data = read_images(x_paths)
+    x_data, x_mask = normalize(x_data)
     x_data = cv2.resize(x_data, (resize, resize), interpolation=cv2.INTER_AREA)
     x_mask = cv2.resize(x_mask.astype(np.uint8), (resize, resize), interpolation=cv2.INTER_NEAREST).astype(bool)
 
     # Load output data and mask
     y_paths = natsort.natsorted(glob.glob(os.path.join(df_test_output["path"][index], "*.png"), recursive=False))
-    y_data, y_mask = read_images(y_paths)
+    y_data = read_images(y_paths)
+    y_data, y_mask  = normalize(y_data)
     y_data = cv2.resize(y_data, (resize, resize), interpolation=cv2.INTER_AREA)
     y_mask = cv2.resize(y_mask.astype(np.uint8), (resize, resize), interpolation=cv2.INTER_NEAREST).astype(bool)
 
@@ -493,4 +495,4 @@ def post_traing_analysis(path):
                         device=device, index=idx, verbose=False, save=True, output_path=output_best_ssim_path)
 
 
-# post_traing_analysis(path="/home/ubuntu/project/sentinel-2-ai-processor/src/results/2025-05-04_10-32-49")
+# post_traing_analysis(path="/home/ubuntu/project/sentinel-2-ai-processor/src/results/2025-05-05_09-13-25")

@@ -10,38 +10,71 @@ from PIL import Image
 import os
 
 
-def normalize(band, lower_percent=2, upper_percent=98):
-    """
-    Normalize a band using percentile stretching. Returns both the normalized band and a validity mask.
-    """
-    valid_mask = (band > 0)
-    if not np.any(valid_mask):
-        return np.zeros_like(band, dtype=np.float32), np.zeros_like(band, dtype=bool)
+# def normalize(band, lower_percent=2, upper_percent=98):
+#     """
+#     Normalize a band using percentile stretching. Returns both the normalized band and a validity mask.
+#     """
+#     valid_mask = (band > 0)
+#     if not np.any(valid_mask):
+#         return np.zeros_like(band, dtype=np.float32), np.zeros_like(band, dtype=bool)
 
-    valid_pixels = band[valid_mask]
-    lower = np.percentile(valid_pixels, lower_percent)
-    upper = np.percentile(valid_pixels, upper_percent)
-    result = band.copy().astype(np.float32)
-    result[valid_mask] = np.clip((band[valid_mask] - lower) / (upper - lower), 0, 1)
-    result[~valid_mask] = 0.0
-    return result, valid_mask
+#     valid_pixels = band[valid_mask]
+#     lower = np.percentile(valid_pixels, lower_percent)
+#     upper = np.percentile(valid_pixels, upper_percent)
+#     result = band.copy().astype(np.float32)
+#     result[valid_mask] = np.clip((band[valid_mask] - lower) / (upper - lower), 0, 1)
+#     result[~valid_mask] = 0.0
+#     return result, valid_mask
+
+
+
+def normalize(data_array):
+    """
+    Normalize the data array to the range [0, 1].
+    """
+    normalized_data = []
+    valid_masks= []
+    for i in range(data_array.shape[2]):
+        band_data = data_array[:, :, i]
+        valid_mask = (band_data > 0)
+        valid_pixels = band_data[valid_mask]
+        min_val = np.min(valid_pixels)
+        max_val = np.max(valid_pixels)
+
+        result = band_data.copy().astype(np.float32)
+        result[valid_mask] = (valid_pixels - min_val) / (max_val - min_val)
+        result[~valid_mask] = 0.0
+        normalized_data.append(result)
+        valid_masks.append(valid_mask)
+    return np.dstack(normalized_data), np.dstack(valid_masks)
+
+# def read_images(product_paths):
+#     images = []
+#     masks = []
+
+#     for path in product_paths:
+#         data = Image.open(path)
+#         data = np.array(data)
+#         norm_data, valid_mask = normalize(data)
+#         images.append(norm_data)
+#         masks.append(valid_mask)
+
+#     images = np.dstack(images)  # H x W x C
+#     valid_masks = np.dstack(masks)  # H x W x C
+
+#     return images, valid_masks
 
 
 def read_images(product_paths):
     images = []
-    masks = []
-
     for path in product_paths:
         data = Image.open(path)
         data = np.array(data)
-        norm_data, valid_mask = normalize(data)
-        images.append(norm_data)
-        masks.append(valid_mask)
+        images.append(data)
 
-    images = np.dstack(images)  # H x W x C
-    valid_masks = np.dstack(masks)  # H x W x C
-
-    return images, valid_masks
+    # image : - > H x W x C
+    images = np.dstack(images)
+    return images
 
 
 class Sentinel2Dataset(Dataset):
@@ -55,13 +88,15 @@ class Sentinel2Dataset(Dataset):
 
     def __getitem__(self, index):
         x_paths = natsort.natsorted(glob.glob(os.path.join(self.df_x["path"][index], "*.png"), recursive=False))
-        x_data, x_mask = read_images(x_paths)
-        x_data = cv2.resize(x_data, (self.img_size, self.img_size), interpolation=cv2.INTER_AREA)
+        x_data = read_images(x_paths)
+        x_data, x_mask = normalize(x_data)
+        x_data = cv2.resize(x_data, (self.img_size, self.img_size), interpolation=cv2.INTER_NEAREST)
         x_mask = cv2.resize(x_mask.astype(np.uint8), (self.img_size, self.img_size), interpolation=cv2.INTER_NEAREST).astype(bool)
 
         y_paths = natsort.natsorted(glob.glob(os.path.join(self.df_y["path"][index], "*.png"), recursive=False))
-        y_data, y_mask = read_images(y_paths)
-        y_data = cv2.resize(y_data, (self.img_size, self.img_size), interpolation=cv2.INTER_AREA)
+        y_data = read_images(y_paths)
+        y_data, y_mask  = normalize(y_data)
+        y_data = cv2.resize(y_data, (self.img_size, self.img_size), interpolation=cv2.INTER_NEAREST)
         y_mask = cv2.resize(y_mask.astype(np.uint8), (self.img_size, self.img_size), interpolation=cv2.INTER_NEAREST).astype(bool)
 
         # Final valid mask is intersection of x and y

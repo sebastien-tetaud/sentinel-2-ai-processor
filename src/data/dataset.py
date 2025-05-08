@@ -10,24 +10,6 @@ from PIL import Image
 import os
 
 
-# def normalize(band, lower_percent=2, upper_percent=98):
-#     """
-#     Normalize a band using percentile stretching. Returns both the normalized band and a validity mask.
-#     """
-#     valid_mask = (band > 0)
-#     if not np.any(valid_mask):
-#         return np.zeros_like(band, dtype=np.float32), np.zeros_like(band, dtype=bool)
-
-#     valid_pixels = band[valid_mask]
-#     lower = np.percentile(valid_pixels, lower_percent)
-#     upper = np.percentile(valid_pixels, upper_percent)
-#     result = band.copy().astype(np.float32)
-#     result[valid_mask] = np.clip((band[valid_mask] - lower) / (upper - lower), 0, 1)
-#     result[~valid_mask] = 0.0
-#     return result, valid_mask
-
-
-
 def normalize(data_array):
     """
     Normalize the data array to the range [0, 1].
@@ -40,29 +22,17 @@ def normalize(data_array):
         valid_pixels = band_data[valid_mask]
         min_val = np.min(valid_pixels)
         max_val = np.max(valid_pixels)
+        #lower = np.percentile(valid_pixels, lower_percent)
+        #upper = np.percentile(valid_pixels, upper_percent)
+        # result[valid_mask] = np.clip((band[valid_mask] - lower) / (upper - lower), 0, 1)
 
         result = band_data.copy().astype(np.float32)
-        result[valid_mask] = (valid_pixels - min_val) / (max_val - min_val)
+        # result[valid_mask] = (valid_pixels - min_val) / (max_val - min_val)
+        result[valid_mask] = result[valid_mask] / 10000
         result[~valid_mask] = 0.0
         normalized_data.append(result)
         valid_masks.append(valid_mask)
     return np.dstack(normalized_data), np.dstack(valid_masks)
-
-# def read_images(product_paths):
-#     images = []
-#     masks = []
-
-#     for path in product_paths:
-#         data = Image.open(path)
-#         data = np.array(data)
-#         norm_data, valid_mask = normalize(data)
-#         images.append(norm_data)
-#         masks.append(valid_mask)
-
-#     images = np.dstack(images)  # H x W x C
-#     valid_masks = np.dstack(masks)  # H x W x C
-
-#     return images, valid_masks
 
 
 def read_images(product_paths):

@@ -1,4 +1,5 @@
 import segmentation_models_pytorch as smp
+import torch.nn as nn
 
 def define_model(
     name,
@@ -24,6 +25,14 @@ def define_model(
             activation=None,
 
         )
+
+        # Add ReLU activation after the model
+        if activation == "relu":
+            model = nn.Sequential(
+                model,
+                nn.ReLU()
+            )
+
 
         return model
 

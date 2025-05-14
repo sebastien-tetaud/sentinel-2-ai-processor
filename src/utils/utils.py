@@ -60,3 +60,9 @@ def prepare_paths(path_dir):
     )
 
     return df_input, df_output
+
+
+def remove_last_segment_rsplit(sentinel_id):
+    # Split from the right side, max 1 split
+    parts = sentinel_id.rsplit('_', 1)
+    return parts[0]

@@ -12,9 +12,9 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Import modules
-from src.auth.auth import S3Connector
-from src.utils.utils import remove_last_segment_rsplit
-from src.utils.cdse_utils import (create_cdse_query_url, download_bands)
+from auth.auth import S3Connector
+from utils.utils import remove_last_segment_rsplit
+from utils.cdse_utils import (create_cdse_query_url, download_bands)
 
 
 def load_config(config_path='config.yaml'):
@@ -229,7 +229,7 @@ def validate_data_alignment(df_l1c, df_l2a):
 
 
 def main():
-    config_path = 'src/cfg/config.yaml'
+    config_path = 'cfg/config_dataset.yaml'
 
     # Load configuration from YAML
     config = load_config(config_path)

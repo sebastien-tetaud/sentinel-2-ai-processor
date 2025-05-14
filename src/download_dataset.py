@@ -8,8 +8,8 @@ from datetime import datetime
 from dotenv import load_dotenv
 
 # Import modules
-from src.auth.auth import S3Connector
-from src.utils.cdse_utils import download_bands
+from auth.auth import S3Connector
+from utils.cdse_utils import download_bands
 
 def load_config(config_path):
     """Load configuration from YAML file"""

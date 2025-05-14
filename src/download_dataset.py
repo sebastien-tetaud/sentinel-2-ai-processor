@@ -135,8 +135,8 @@ def main():
     l1c_csv_path = args.l1c_csv
     l2a_csv_path = args.l2a_csv
 
-    input_dir= l1c_csv_path.replace(".csv","")
-    output_dir = l2a_csv_path.replace(".csv","")
+    input_dir = os.path.join(env['DATASET_DIR'], "input")
+    output_dir = os.path.join(env['DATASET_DIR'], "output")
 
     # Log info
     logger.info(f"Using configuration from: {args.config}")

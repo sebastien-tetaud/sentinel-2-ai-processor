@@ -118,8 +118,8 @@ def main():
     import argparse
     parser = argparse.ArgumentParser(description='Download Sentinel data based on provided config and CSV files')
     parser.add_argument('--config', type=str, required=True, help='Path to the config file')
-    parser.add_argument('--l1c-csv', type=str, help='Path to L1C CSV file')
-    parser.add_argument('--l2a-csv', type=str, help='Path to L2A CSV file')
+    parser.add_argument('--l1c-csv', type=str, required=True, help='Path to L1C CSV file')
+    parser.add_argument('--l2a-csv', type=str, required=True, help='Path to L2A CSV file')
     args = parser.parse_args()
 
     # Load configuration

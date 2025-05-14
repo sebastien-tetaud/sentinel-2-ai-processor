@@ -19,20 +19,37 @@ def normalize(data_array):
     for i in range(data_array.shape[2]):
         band_data = data_array[:, :, i]
         valid_mask = (band_data > 0)
-        valid_pixels = band_data[valid_mask]
-        min_val = np.min(valid_pixels)
-        max_val = np.max(valid_pixels)
-        #lower = np.percentile(valid_pixels, lower_percent)
-        #upper = np.percentile(valid_pixels, upper_percent)
-        # result[valid_mask] = np.clip((band[valid_mask] - lower) / (upper - lower), 0, 1)
-
         result = band_data.copy().astype(np.float32)
-        # result[valid_mask] = (valid_pixels - min_val) / (max_val - min_val)
         result[valid_mask] = result[valid_mask] / 10000
+        result[valid_mask] = np.clip(result[valid_mask], 0, 1)
         result[~valid_mask] = 0.0
         normalized_data.append(result)
         valid_masks.append(valid_mask)
     return np.dstack(normalized_data), np.dstack(valid_masks)
+
+# def normalize(data_array):
+#     """
+#     Normalize the data array to the range [0, 1].
+#     """
+#     normalized_data = []
+#     valid_masks= []
+#     for i in range(data_array.shape[2]):
+#         band_data = data_array[:, :, i]
+#         valid_mask = (band_data > 0)
+#         valid_pixels = band_data[valid_mask]
+#         min_val = np.min(valid_pixels)
+#         max_val = np.max(valid_pixels)
+#         #lower = np.percentile(valid_pixels, lower_percent)
+#         #upper = np.percentile(valid_pixels, upper_percent)
+#         # result[valid_mask] = np.clip((band[valid_mask] - lower) / (upper - lower), 0, 1)
+
+#         result = band_data.copy().astype(np.float32)
+#         result[valid_mask] = (valid_pixels - min_val) / (max_val - min_val)
+#         # result[valid_mask] = result[valid_mask] / 10000
+#         result[~valid_mask] = 0.0
+#         normalized_data.append(result)
+#         valid_masks.append(valid_mask)
+#     return np.dstack(normalized_data), np.dstack(valid_masks)
 
 
 def read_images(product_paths):

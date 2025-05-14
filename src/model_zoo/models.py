@@ -32,6 +32,12 @@ def define_model(
                 model,
                 nn.ReLU()
             )
+        if activation == "sigmoid":
+            model = nn.Sequential(
+                model,
+                nn.Sigmoid()
+            )
+
 
 
         return model

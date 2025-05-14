@@ -156,7 +156,7 @@ def main():
 
     # Visualization
     visualize_results(x_np=x_np, pred_np=pred_np, bands=bands,
-                      cmap="veridis", output_path="inference_result")
+                      cmap="viridis", output_path="inference_result")
 
 
 if __name__ == "__main__":

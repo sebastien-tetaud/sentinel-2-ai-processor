@@ -65,25 +65,36 @@ def read_images(product_paths):
 
 
 class Sentinel2Dataset(Dataset):
+
     def __init__(self, df_x, df_y, train, augmentation, img_size):
         self.df_x = df_x
         self.df_y = df_y
         self.train = train
         self.augmentation = augmentation
         self.img_size = img_size
-        # self.transform = get_transforms(train=self.train, augmentation=self.augmentation)
+        self.transform = get_transforms(train=self.train, augmentation=True, aug_prob=0.5)
 
     def __getitem__(self, index):
         x_paths = natsort.natsorted(glob.glob(os.path.join(self.df_x["path"][index], "*.png"), recursive=False))
         x_data = read_images(x_paths)
         x_data, x_mask = normalize(x_data)
-        x_data = cv2.resize(x_data, (self.img_size, self.img_size), interpolation=cv2.INTER_NEAREST)
-        x_mask = cv2.resize(x_mask.astype(np.uint8), (self.img_size, self.img_size), interpolation=cv2.INTER_NEAREST).astype(bool)
 
         y_paths = natsort.natsorted(glob.glob(os.path.join(self.df_y["path"][index], "*.png"), recursive=False))
         y_data = read_images(y_paths)
-        y_data, y_mask  = normalize(y_data)
+        y_data, y_mask = normalize(y_data)
+
+        # Apply the same augmentation to both input and target
+        if self.train and self.augmentation:
+            transformed = self.transform(image=x_data, mask=y_data)
+            x_data = transformed["image"]
+            y_data = transformed["mask"]
+
+        # Handle resizing separately from augmentations
+        x_data = cv2.resize(x_data, (self.img_size, self.img_size), interpolation=cv2.INTER_NEAREST)
         y_data = cv2.resize(y_data, (self.img_size, self.img_size), interpolation=cv2.INTER_NEAREST)
+
+        # Resize masks to match image size
+        x_mask = cv2.resize(x_mask.astype(np.uint8), (self.img_size, self.img_size), interpolation=cv2.INTER_NEAREST).astype(bool)
         y_mask = cv2.resize(y_mask.astype(np.uint8), (self.img_size, self.img_size), interpolation=cv2.INTER_NEAREST).astype(bool)
 
         # Final valid mask is intersection of x and y
@@ -96,14 +107,50 @@ class Sentinel2Dataset(Dataset):
         y_data = torch.from_numpy(y_data).float()
         y_data = torch.permute(y_data, (2, 0, 1))  # HWC to CHW
 
-        # transformed = self.transform(image=x_data, mask=y_data)
-        # y_data = transformed["mask"]
-        # x_data = transformed["image"]
-
         return x_data, y_data, valid_mask
 
     def __len__(self):
         return len(self.df_x)
+
+    # def __init__(self, df_x, df_y, train, augmentation, img_size):
+    #     self.df_x = df_x
+    #     self.df_y = df_y
+    #     self.train = train
+    #     self.augmentation = augmentation
+    #     self.img_size = img_size
+    #     # self.transform = get_transforms(train=self.train, augmentation=self.augmentation)
+
+    # def __getitem__(self, index):
+    #     x_paths = natsort.natsorted(glob.glob(os.path.join(self.df_x["path"][index], "*.png"), recursive=False))
+    #     x_data = read_images(x_paths)
+    #     x_data, x_mask = normalize(x_data)
+    #     x_data = cv2.resize(x_data, (self.img_size, self.img_size), interpolation=cv2.INTER_NEAREST)
+    #     x_mask = cv2.resize(x_mask.astype(np.uint8), (self.img_size, self.img_size), interpolation=cv2.INTER_NEAREST).astype(bool)
+
+    #     y_paths = natsort.natsorted(glob.glob(os.path.join(self.df_y["path"][index], "*.png"), recursive=False))
+    #     y_data = read_images(y_paths)
+    #     y_data, y_mask  = normalize(y_data)
+    #     y_data = cv2.resize(y_data, (self.img_size, self.img_size), interpolation=cv2.INTER_NEAREST)
+    #     y_mask = cv2.resize(y_mask.astype(np.uint8), (self.img_size, self.img_size), interpolation=cv2.INTER_NEAREST).astype(bool)
+
+    #     # Final valid mask is intersection of x and y
+    #     valid_mask = torch.from_numpy(y_mask).bool()
+    #     valid_mask = torch.permute(valid_mask, (2, 0, 1))  # HWC to CHW
+
+    #     x_data = torch.from_numpy(x_data).float()
+    #     x_data = torch.permute(x_data, (2, 0, 1))  # HWC to CHW
+
+    #     y_data = torch.from_numpy(y_data).float()
+    #     y_data = torch.permute(y_data, (2, 0, 1))  # HWC to CHW
+
+    #     # transformed = self.transform(image=x_data, mask=y_data)
+    #     # y_data = transformed["mask"]
+    #     # x_data = transformed["image"]
+
+    #     return x_data, y_data, valid_mask
+
+    # def __len__(self):
+    #     return len(self.df_x)
 
 
 class Sentinel2TCIDataset(Dataset):

@@ -88,15 +88,10 @@ def prepare_data(config):
     logger.info(f"Number of validation samples: {len(df_val_input)}")
     logger.info(f"Number of test samples: {len(df_test_input)}")
 
-    # train_dataset = Sentinel2Dataset(df_x=df_train_input, df_y=df_train_output, train=True, augmentation=False, img_size=resize)
-    # val_dataset = Sentinel2Dataset(df_x=df_val_input, df_y=df_val_output, train=True, augmentation=False, img_size=resize)
-    # test_dataset = Sentinel2Dataset(df_x=df_test_input, df_y=df_test_output, train=True, augmentation=False, img_size=resize)
 
     train_dataset = Sentinel2Dataset(df_x=df_train_input, df_y=df_train_output, train=True, augmentation=augmentation, img_size=resize)
     val_dataset = Sentinel2Dataset(df_x=df_val_input, df_y=df_val_output, train=False, augmentation=False, img_size=resize)
     test_dataset = Sentinel2Dataset(df_x=df_test_input, df_y=df_test_output, train=False, augmentation=False, img_size=resize)
-
-
 
 
     train_loader, val_loader = define_loaders(

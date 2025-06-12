@@ -22,10 +22,10 @@ def get_transforms(train=True, augmentation=True, aug_prob=0.7):
         ]
         # Quality degradation transforms (applied only to input)
         quality_transforms = [
-            A.GaussNoise(var_limit=(5.0, 10.0), p=0.5),
+            A.GaussNoise(var_limit=(5.0, 7.0), p=0.5),
             A.GaussianBlur(blur_limit=(3, 5), p=0.5),
 
-            A.RandomBrightnessContrast(p=0.5)
+            # A.RandomBrightnessContrast(p=0.5)
         ]
 
         # Combine everything with proper probabilities

@@ -25,7 +25,7 @@ TRAINING:
     factor: 0.5
     optim: Adam
     batch_size: 8
-    augmentation: True
+    augmentation: False
     n_epoch: 100
     num_workers : 8
     save_strategy: metric # loss/ metric

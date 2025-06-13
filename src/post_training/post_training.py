@@ -495,4 +495,4 @@ def post_traing_analysis(path):
                         device=device, index=idx, verbose=False, save=True, output_path=output_best_ssim_path)
 
 
-# post_traing_analysis(path="/home/ubuntu/project/sentinel-2-ai-processor/src/results/2025-05-05_09-13-25")
+# post_traing_analysis(path="/home/ubuntu/project/sentinel-2-ai-processor/src/results/2025-06-12_05-17-04")

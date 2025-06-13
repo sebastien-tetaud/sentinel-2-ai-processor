@@ -6,8 +6,8 @@ import requests
 from pystac_client import Client
 import os
 
-from src.auth.auth import get_direct_access_token
-from src.utils.image import extract_url_after_filename
+from auth.auth import get_direct_access_token
+from utils.image import extract_url_after_filename
 
 
 def get_product_content(s3_client, bucket_name, object_url):

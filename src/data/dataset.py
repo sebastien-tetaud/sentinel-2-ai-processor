@@ -72,7 +72,7 @@ class Sentinel2Dataset(Dataset):
         self.train = train
         self.augmentation = augmentation
         self.img_size = img_size
-        self.transform = get_transforms(train=self.train, augmentation=True, aug_prob=0.5)
+        # self.transform = get_transforms(train=self.train, augmentation=True, aug_prob=0.5)
 
     def __getitem__(self, index):
         x_paths = natsort.natsorted(glob.glob(os.path.join(self.df_x["path"][index], "*.png"), recursive=False))
@@ -84,10 +84,10 @@ class Sentinel2Dataset(Dataset):
         y_data, y_mask = normalize(y_data)
 
         # Apply the same augmentation to both input and target
-        if self.train and self.augmentation:
-            transformed = self.transform(image=x_data, mask=y_data)
-            x_data = transformed["image"]
-            y_data = transformed["mask"]
+        # if self.train and self.augmentation:
+        #     transformed = self.transform(image=x_data, mask=y_data)
+        #     x_data = transformed["image"]
+        #     y_data = transformed["mask"]
 
         # Handle resizing separately from augmentations
         x_data = cv2.resize(x_data, (self.img_size, self.img_size), interpolation=cv2.INTER_NEAREST)

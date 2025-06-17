@@ -16,8 +16,8 @@ query:
     - 11.2
     - 50.1833
 
-  start_date: '2024-07-01'
-  end_date: '2024-08-15'
+  start_date: '2024-06-01'
+  end_date: '2024-10-15'
 
   max_items: 1000
   max_cloud_cover: 30

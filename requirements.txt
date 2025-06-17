@@ -30,7 +30,7 @@ nc-time-axis==1.4.1
 netcdf4==1.7.2
 numbagg==0.9.0
 opt-einsum==3.4.0
-plotlys
+plotly
 pickleshare==0.7.5
 pyarrow==19.0.1
 pysocks==1.7.1

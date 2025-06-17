@@ -1,9 +1,7 @@
 import os
-import os
 from datetime import datetime
 
 import matplotlib.pyplot as plt
-import numpy as np
 import pandas as pd
 import torch
 import torch.nn as nn
@@ -12,7 +10,7 @@ import yaml
 from loguru import logger
 from tqdm import tqdm
 
-from data.dataset import Sentinel2TCIDataset, Sentinel2Dataset
+from data.dataset import Sentinel2Dataset
 from data.loader import define_loaders
 from model_zoo.models import define_model
 from training.metrics import MultiSpectralMetrics, avg_metric_bands
